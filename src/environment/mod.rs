@@ -51,8 +51,15 @@ pub fn set_global_scope(env: &Rc<RefCell<Environment>>) {
     );
     let _ = declare_var(
         env,
-        String::from("type"),
-        make_native_function(r#type),
+        String::from("var_type"),
+        make_native_function(var_type),
+        true,
+    );
+
+    let _ = declare_var(
+        env,
+        String::from("reverse"),
+        make_native_function(reverse),
         true,
     );
 }

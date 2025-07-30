@@ -127,7 +127,7 @@ pub fn string(args: Vec<RuntimeVal>) -> Result<RuntimeVal, RuntimeError> {
     }
 }
 
-pub fn r#type(args: Vec<RuntimeVal>) -> Result<RuntimeVal, RuntimeError> {
+pub fn var_type(args: Vec<RuntimeVal>) -> Result<RuntimeVal, RuntimeError> {
     if args.len() != 1 {
         return Err(RuntimeError::MoreFuncArguments);
     }
@@ -138,5 +138,16 @@ pub fn r#type(args: Vec<RuntimeVal>) -> Result<RuntimeVal, RuntimeError> {
         RuntimeVal::Nil => Ok(make_string("Nil".to_string())),
         RuntimeVal::Object(_) => Ok(make_string("<Object>".to_string())),
         _ => panic!(),
+    }
+}
+
+pub fn reverse(args: Vec<RuntimeVal>) -> Result<RuntimeVal, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::LessFuncArguments);
+    }
+
+    match &args[0] {
+        RuntimeVal::String(s) => Ok(make_string(s.chars().rev().collect())),
+        _ => Err(RuntimeError::MisMatchTypes),
     }
 }
