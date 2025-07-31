@@ -3,85 +3,85 @@ use std::collections::HashMap;
 use crate::lexer::Token;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Stmt<'a> {
-    Expression(Expr<'a>),
-    VarDeclaration(VarDeclaration<'a>),
-    Print(Option<Vec<Expr<'a>>>, bool),
-    IfElse(Vec<(Expr<'a>, Vec<Stmt<'a>>)>),
-    For(((Box<Stmt<'a>>, Expr<'a>, Expr<'a>), Vec<Stmt<'a>>)),
-    While((Expr<'a>, Vec<Stmt<'a>>)),
-    Function(FunctionDeclaration<'a>),
-    Block(Vec<Stmt<'a>>),
-    Return(Expr<'a>),
+pub enum Stmt {
+    Expression(Expr),
+    VarDeclaration(VarDeclaration),
+    Print(Option<Vec<Expr>>, bool),
+    IfElse(Vec<(Expr, Vec<Stmt>)>),
+    For(((Box<Stmt>, Expr, Expr), Vec<Stmt>)),
+    While((Expr, Vec<Stmt>)),
+    Function(FunctionDeclaration),
+    Block(Vec<Stmt>),
+    Return(Expr),
     Break,
     Continue,
-    Class(ClassDeclaration<'a>),
+    Class(ClassDeclaration),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct VarDeclaration<'a> {
+pub struct VarDeclaration {
     pub constant: bool,
-    pub identifier: &'a str,
-    pub value: Box<Expr<'a>>,
+    pub identifier: String,
+    pub value: Box<Expr>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct FunctionDeclaration<'a> {
-    pub name: &'a str,
-    pub parameters: Vec<&'a str>,
-    pub body: Vec<Stmt<'a>>,
+pub struct FunctionDeclaration {
+    pub name: String,
+    pub parameters: Vec<String>,
+    pub body: Vec<Stmt>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ClassDeclaration<'a> {
-    pub name: &'a str,
-    pub static_fields: Vec<VarDeclaration<'a>>,
-    pub methods: HashMap<&'a str, FunctionDeclaration<'a>>,
-    pub superclass: Option<&'a str>,
+pub struct ClassDeclaration {
+    pub name: String,
+    pub static_fields: Vec<VarDeclaration>,
+    pub methods: HashMap<String, FunctionDeclaration>,
+    pub superclass: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Expr<'a> {
+pub enum Expr {
     NumericLiteral(f64),
     Null,
     BoolLiteral(bool),
-    StringLiteral(&'a str),
-    Identifier(&'a str),
+    StringLiteral(String),
+    Identifier(String),
     This,
     Member {
-        object: Box<Expr<'a>>,
-        property: Box<Expr<'a>>,
+        object: Box<Expr>,
+        property: Box<Expr>,
         computed: bool,
     },
     Call {
-        args: Vec<Expr<'a>>,
-        caller: Box<Expr<'a>>,
+        args: Vec<Expr>,
+        caller: Box<Expr>,
     },
     Unary {
-        operator: Token<'a>,
-        right: Box<Expr<'a>>,
+        operator: Token,
+        right: Box<Expr>,
     },
     BinaryExpr {
-        left: Box<Expr<'a>>,
-        operator: Token<'a>,
-        right: Box<Expr<'a>>,
+        left: Box<Expr>,
+        operator: Token,
+        right: Box<Expr>,
     },
     ComparisonLiteral {
-        left: Box<Expr<'a>>,
-        operator: Token<'a>,
-        right: Box<Expr<'a>>,
+        left: Box<Expr>,
+        operator: Token,
+        right: Box<Expr>,
     },
     ObjectLiteral {
-        properties: Vec<Property<'a>>,
+        properties: Vec<Property>,
     },
     AssignmentExpr {
-        assignee: Box<Expr<'a>>,
-        value: Box<Expr<'a>>,
+        assignee: Box<Expr>,
+        value: Box<Expr>,
     },
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Property<'a> {
-    pub key: &'a str,
-    pub value: Option<Box<Expr<'a>>>,
+pub struct Property {
+    pub key: String,
+    pub value: Option<Box<Expr>>,
 }

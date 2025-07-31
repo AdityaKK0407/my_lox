@@ -14,8 +14,7 @@ fn main() {
             println!("File error: {e}");
             process::exit(1);
         }
-    } 
-    // else {
-    //     let _ = run_prompt();
-    // }
+    } else {
+        let _ = run_prompt();
+    }
 }

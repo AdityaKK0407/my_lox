@@ -9,14 +9,14 @@ use crate::values::RuntimeVal;
 use crate::values::make_native_function;
 
 #[derive(Debug)]
-pub struct Environment<'a> {
-    parent: Option<Rc<RefCell<Environment<'a>>>>,
-    variables: HashMap<&'a str, RuntimeVal<'a>>,
-    constants: HashSet<&'a str>,
+pub struct Environment {
+    parent: Option<Rc<RefCell<Environment>>>,
+    variables: HashMap<String, RuntimeVal>,
+    constants: HashSet<String>,
 }
 
-impl<'a> Environment<'a> {
-    pub fn new(parent_env: Option<Rc<RefCell<Environment<'a>>>>) -> Rc<RefCell<Self>> {
+impl Environment {
+    pub fn new(parent_env: Option<Rc<RefCell<Environment>>>) -> Rc<RefCell<Self>> {
         let env = Rc::new(RefCell::new(Environment {
             parent: parent_env,
             variables: HashMap::new(),
@@ -55,53 +55,60 @@ pub fn set_global_scope(env: &Rc<RefCell<Environment>>) {
         make_native_function(var_type),
         true,
     );
+
+    let _ = declare_var(
+        env,
+        "reverse",
+        make_native_function(reverse),
+        true,
+    );
 }
 
-pub fn declare_var<'a>(
-    env: &Rc<RefCell<Environment<'a>>>,
-    var_name: &'a str,
-    value: RuntimeVal<'a>,
+pub fn declare_var(
+    env: &Rc<RefCell<Environment>>,
+    var_name: &str,
+    value: RuntimeVal,
     constant: bool,
-) -> Result<RuntimeVal<'a>, RuntimeError> {
+) -> Result<RuntimeVal, RuntimeError> {
     let mut env = env.borrow_mut();
     if env.variables.contains_key(var_name) {
         return Err(RuntimeError::DeclareVar);
     }
-    env.variables.insert(var_name, value.clone());
+    env.variables.insert(var_name.to_string(), value.clone());
     if constant {
-        env.constants.insert(var_name);
+        env.constants.insert(var_name.to_string());
     }
     Ok(value)
 }
 
-pub fn assign_var<'a>(
-    env: &Rc<RefCell<Environment<'a>>>,
-    var_name: &'a str,
-    value: RuntimeVal<'a>,
-) -> Result<RuntimeVal<'a>, RuntimeError> {
+pub fn assign_var(
+    env: &Rc<RefCell<Environment>>,
+    var_name: &str,
+    value: RuntimeVal,
+) -> Result<RuntimeVal, RuntimeError> {
     let final_env = resolve(env, var_name)?;
     let mut env = final_env.borrow_mut();
 
-    if env.constants.contains(&var_name) {
+    if env.constants.contains(var_name) {
         return Err(RuntimeError::ConstReassign);
     }
-    env.variables.insert(var_name, value.clone());
+    env.variables.insert(var_name.to_string(), value.clone());
     Ok(value)
 }
 
-pub fn lookup_var<'a>(env: &Rc<RefCell<Environment<'a>>>, var_name: &'a str) -> Result<RuntimeVal<'a>, RuntimeError> {
+pub fn lookup_var(env: &Rc<RefCell<Environment>>, var_name: &str) -> Result<RuntimeVal, RuntimeError> {
     let final_env = resolve(env, var_name)?;
     let env = final_env.borrow();
-    match env.variables.get(&var_name) {
+    match env.variables.get(var_name) {
         Some(v) => Ok(v.clone()),
         None => Err(RuntimeError::UnidentifiedVar),
     }
 }
 
-pub fn resolve<'a>(
-    env: &Rc<RefCell<Environment<'a>>>,
-    var_name: &'a str,
-) -> Result<Rc<RefCell<Environment<'a>>>, RuntimeError> {
+pub fn resolve(
+    env: &Rc<RefCell<Environment>>,
+    var_name: &str,
+) -> Result<Rc<RefCell<Environment>>, RuntimeError> {
     if env.borrow().variables.contains_key(var_name) {
         return Ok(Rc::clone(env));
     }

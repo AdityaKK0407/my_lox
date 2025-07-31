@@ -1,12 +1,12 @@
 #[derive(Debug)]
 pub enum ParserError {
     EOF,
-    UnExpectedToken(String),
-    ObjectKey(String),
-    MemberExpr(String),
+    UnExpectedToken(&'static str),
+    ObjectKey(&'static str),
+    MemberExpr(&'static str),
     PrimaryExpr,
     ConstValueNull,
-    ForLoopDeclaration(u8),
+    ForLoopDeclaration(&'static str),
     InvalidClassStmt,
 }
 

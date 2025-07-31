@@ -112,20 +112,17 @@ pub fn string(args: Vec<RuntimeVal>) -> Result<RuntimeVal, RuntimeError> {
         return Err(RuntimeError::MoreFuncArguments);
     }
 
-    match args[0] {
-        RuntimeVal::Number(num) => {
-            let s = num.to_string();
-            Ok(make_string(Box::leak(s.into_boxed_str())))
-        },
+    match &args[0] {
+        RuntimeVal::Number(num) => Ok(make_string(&num.to_string()[..])),
         RuntimeVal::Bool(bit) => {
-            if bit {
+            if *bit {
                 Ok(make_string("true"))
             } else {
                 Ok(make_string("false"))
             }
         }
         RuntimeVal::Nil => panic!("Cannot convert type nil to type string"),
-        RuntimeVal::String(str) => Ok(make_string(str)),
+        RuntimeVal::String(str) => Ok(make_string(&str[..])),
         _ => return Err(RuntimeError::MisMatchTypes),
     }
 }
@@ -142,5 +139,20 @@ pub fn var_type(args: Vec<RuntimeVal>) -> Result<RuntimeVal, RuntimeError> {
         RuntimeVal::String(_) => Ok(make_string("String")),
         RuntimeVal::Object(_) => Ok(make_string("<Object>")),
         _ => panic!(),
+    }
+}
+
+pub fn reverse(args: Vec<RuntimeVal>) -> Result<RuntimeVal, RuntimeError> {
+    if args.len() < 1 {
+        return Err(RuntimeError::LessFuncArguments);
+    }
+
+    if args.len() > 1 {
+        return Err(RuntimeError::MoreFuncArguments);
+    }
+
+    match &args[0] {
+        RuntimeVal::String(s) => Ok(make_string(&s.chars().rev().collect::<String>()[..])),
+        _ => Err(RuntimeError::MisMatchTypes),
     }
 }

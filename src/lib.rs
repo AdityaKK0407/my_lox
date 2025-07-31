@@ -1,8 +1,8 @@
 use std::cell::RefCell;
 use std::error::Error;
 use std::fs;
-// use std::io;
-// use std::io::Write;
+use std::io;
+use std::io::Write;
 use std::rc::Rc;
 
 use crate::environment::*;
@@ -27,42 +27,40 @@ mod values;
 
 pub fn run_file(file_path: &str) -> Result<(), Box<dyn Error>> {
     let contents = fs::read_to_string(file_path)?;
-    let env = Environment::new(None);
-    run(&contents[..], Rc::clone(&env), false);
+    let mut env = Environment::new(None);
+    run(&contents[..], &mut env, false);
     Ok(())
 }
 
-// pub fn run_prompt() -> Result<(), String> {
-//     let env = Environment::new(None);
-//     loop {
-//         let mut statement = String::new();
-//         print!("> ");
-//         io::stdout().flush().unwrap();
+pub fn run_prompt() -> Result<(), String> {
+    let mut statement = String::new();
+    let mut env = Environment::new(None);
+    loop {
+        print!("> ");
+        io::stdout().flush().unwrap();
+        io::stdin()
+            .read_line(&mut statement)
+            .expect("Failed to read line");
 
-//         io::stdin()
-//             .read_line(&mut statement)
-//             .expect("Failed to read line");
+        if statement.trim() == "exit" {
+            break;
+        }
+        run(&statement[..], &mut env, true);
+        statement.clear();
+    }
 
-//         if statement.trim() == "exit" {
-//             break;
-//         }
-//         run(statement, Rc::clone(&env), true);
-//     }
+    Ok(())
+}
 
-//     Ok(())
-// }
-
-fn run<'a>(source_code: &'a str, env: Rc<RefCell<Environment<'a>>>, is_repl: bool) {
+fn run(source_code: &str, env: &mut Rc<RefCell<Environment>>, is_repl: bool) {
     let tokenizer = lexer::Tokenizer::new(source_code);
-    let (tokens, had_error) = tokenizer.scan_tokens();
+    let (tokens, had_error) =  tokenizer.scan_tokens();
 
     if had_error {
         return;
     }
 
-    let mut parser = parser::parser::Parser::new(tokens);
-
-    let program = parser.produce_ast();
+    let program = parser::parser::produce_ast(tokens);
     let parsed_program;
     match program {
         Ok(s) => parsed_program = s,
@@ -72,7 +70,7 @@ fn run<'a>(source_code: &'a str, env: Rc<RefCell<Environment<'a>>>, is_repl: boo
             return;
         }
     }
-    if let Err(e) = interpreter::interpreter::evaluate_program(parsed_program, &env, is_repl) {
+    if let Err(e) = interpreter::interpreter::evaluate_program(&parsed_program, env, is_repl) {
         handle_runtime_error(e);
     }
 }
