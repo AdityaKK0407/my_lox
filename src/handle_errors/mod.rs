@@ -1,9 +1,9 @@
 #[derive(Debug)]
-pub enum ParserError<'a> {
+pub enum ParserError {
     EOF,
-    UnExpectedToken(&'a str),
-    ObjectKey(&'a str),
-    MemberExpr(&'a str),
+    UnExpectedToken(String),
+    ObjectKey(String),
+    MemberExpr(String),
     PrimaryExpr,
     ConstValueNull,
     ForLoopDeclaration(u8),

@@ -9,23 +9,23 @@ use crate::interpreter::statement::*;
 use crate::values::*;
 use crate::handle_errors::RuntimeError;
 
-pub fn evaluate_program(program: Vec<Stmt>, env: &Rc<RefCell<Environment>>, is_repl: bool) -> Result<(), RuntimeError> {
+pub fn evaluate_program<'a>(program: Vec<Stmt<'a>>, env: &Rc<RefCell<Environment<'a>>>, is_repl: bool) -> Result<(), RuntimeError> {
     for statement in &program {
         if let Stmt::Function(function) = statement {
             let func = make_function(
-                function.name.clone(),
+                function.name,
                 function.parameters.clone(),
                 function.body.clone(),
                 env,
             );
-            declare_var(env, function.name.clone(), func, true)?;
+            declare_var(env, function.name, func, true)?;
         } else if let Stmt::Class(class) = statement {
             let mut fields = HashMap::new();
             for var in &class.static_fields {
                 let res = var_declaration(var.clone(), env)?;
                 match res {
                     EvalResult::Value(value) => {
-                        fields.insert(var.identifier.clone(), value);
+                        fields.insert(var.identifier, value);
                     }
                     _ => panic!(),
                 }
@@ -33,20 +33,20 @@ pub fn evaluate_program(program: Vec<Stmt>, env: &Rc<RefCell<Environment>>, is_r
             let mut methods = HashMap::new();
             for (name, func) in &class.methods {
                 let res = make_function(
-                    func.name.clone(),
+                    func.name,
                     func.parameters.clone(),
                     func.body.clone(),
                     env,
                 );
-                methods.insert(name.clone(), res);
+                methods.insert(*name, res);
             }
             let class_val = make_class(
-                class.name.clone(),
+                class.name,
                 fields,
                 methods,
                 class.superclass.clone(),
             );
-            let _ = declare_var(env, class.name.clone(), class_val, true);
+            let _ = declare_var(env, class.name, class_val, true);
         } else if !is_repl && matches!(statement, Stmt::VarDeclaration(_)) {
             evaluate(statement, env)?;
         } else if !is_repl {
@@ -64,14 +64,14 @@ pub fn evaluate_program(program: Vec<Stmt>, env: &Rc<RefCell<Environment>>, is_r
     } else {
         let main_stmt = Stmt::Expression(Expr::Call {
             args: vec![],
-            caller: Box::new(Expr::Identifier(String::from("main"))),
+            caller: Box::new(Expr::Identifier("main")),
         });
         evaluate(&main_stmt, env)?;
     }
     Ok(())
 }
 
-pub fn evaluate(ast_node: &Stmt, env: &Rc<RefCell<Environment>>) -> Result<EvalResult, RuntimeError> {
+pub fn evaluate<'a>(ast_node: &Stmt<'a>, env: &Rc<RefCell<Environment<'a>>>) -> Result<EvalResult<'a>, RuntimeError> {
     match ast_node {
         Stmt::Expression(expr) => Ok(EvalResult::Value(evaluate_expr(expr.clone(), env)?)),
         Stmt::VarDeclaration(declaration) => var_declaration(declaration.clone(), env),
@@ -94,8 +94,8 @@ pub fn evaluate(ast_node: &Stmt, env: &Rc<RefCell<Environment>>) -> Result<EvalR
             parameters,
             body,
         }) => {
-            let function = make_function(name.clone(), parameters.clone(), body.clone(), env);
-            let _ = declare_var(env, name.clone(), function, true);
+            let function = make_function(name, parameters.clone(), body.clone(), env);
+            let _ = declare_var(env, name, function, true);
             Ok(make_none())
         }
         Stmt::Class(ClassDeclaration {
@@ -109,7 +109,7 @@ pub fn evaluate(ast_node: &Stmt, env: &Rc<RefCell<Environment>>) -> Result<EvalR
                 let res = var_declaration(var.clone(), env)?;
                 match res {
                     EvalResult::Value(value) => {
-                        fields.insert(var.identifier.clone(), value);
+                        fields.insert(var.identifier, value);
                     }
                     _ => panic!(),
                 }
@@ -117,20 +117,20 @@ pub fn evaluate(ast_node: &Stmt, env: &Rc<RefCell<Environment>>) -> Result<EvalR
             let mut method = HashMap::new();
             for (name, func) in methods {
                 let res = make_function(
-                    func.name.clone(),
+                    func.name,
                     func.parameters.clone(),
                     func.body.clone(),
                     env,
                 );
-                method.insert(name.clone(), res);
+                method.insert(*name, res);
             }
             let class_val = make_class(
-                name.clone(),
+                name,
                 fields,
                 method,
                 superclass.clone(),
             );
-            let _ = declare_var(env, name.clone(), class_val, true);
+            let _ = declare_var(env, name, class_val, true);
             Ok(make_none())
         }
         // _ => panic!(),

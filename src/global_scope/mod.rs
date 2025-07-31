@@ -112,17 +112,20 @@ pub fn string(args: Vec<RuntimeVal>) -> Result<RuntimeVal, RuntimeError> {
         return Err(RuntimeError::MoreFuncArguments);
     }
 
-    match &args[0] {
-        RuntimeVal::Number(num) => Ok(make_string(num.to_string())),
+    match args[0] {
+        RuntimeVal::Number(num) => {
+            let s = num.to_string();
+            Ok(make_string(Box::leak(s.into_boxed_str())))
+        },
         RuntimeVal::Bool(bit) => {
-            if *bit {
-                Ok(make_string("true".to_string()))
+            if bit {
+                Ok(make_string("true"))
             } else {
-                Ok(make_string("false".to_string()))
+                Ok(make_string("false"))
             }
         }
         RuntimeVal::Nil => panic!("Cannot convert type nil to type string"),
-        RuntimeVal::String(str) => Ok(make_string(str.clone())),
+        RuntimeVal::String(str) => Ok(make_string(str)),
         _ => return Err(RuntimeError::MisMatchTypes),
     }
 }
@@ -133,21 +136,11 @@ pub fn var_type(args: Vec<RuntimeVal>) -> Result<RuntimeVal, RuntimeError> {
     }
 
     match &args[0] {
-        RuntimeVal::Number(_) => Ok(make_string("Number".to_string())),
-        RuntimeVal::Bool(_) => Ok(make_string("Bool".to_string())),
-        RuntimeVal::Nil => Ok(make_string("Nil".to_string())),
-        RuntimeVal::Object(_) => Ok(make_string("<Object>".to_string())),
+        RuntimeVal::Number(_) => Ok(make_string("Number")),
+        RuntimeVal::Bool(_) => Ok(make_string("Bool")),
+        RuntimeVal::Nil => Ok(make_string("Nil")),
+        RuntimeVal::String(_) => Ok(make_string("String")),
+        RuntimeVal::Object(_) => Ok(make_string("<Object>")),
         _ => panic!(),
-    }
-}
-
-pub fn reverse(args: Vec<RuntimeVal>) -> Result<RuntimeVal, RuntimeError> {
-    if args.len() != 1 {
-        return Err(RuntimeError::LessFuncArguments);
-    }
-
-    match &args[0] {
-        RuntimeVal::String(s) => Ok(make_string(s.chars().rev().collect())),
-        _ => Err(RuntimeError::MisMatchTypes),
     }
 }

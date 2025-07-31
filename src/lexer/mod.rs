@@ -66,14 +66,14 @@ pub enum TokenType {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Token {
+pub struct Token<'a> {
     pub token_type: TokenType,
-    pub lexeme: String,
+    pub lexeme: &'a str,
     pub line: usize,
 }
 
-impl Token {
-    pub fn new(token_type: TokenType, lexeme: String, line: usize) -> Self {
+impl<'a> Token<'a> {
+    pub fn new(token_type: TokenType, lexeme: &'a str, line: usize) -> Self {
         Self {
             token_type,
             lexeme,
@@ -82,17 +82,17 @@ impl Token {
     }
 }
 
-pub struct Tokenizer {
-    tokens: Vec<Token>,
-    source_code: String,
+pub struct Tokenizer<'a> {
+    tokens: Vec<Token<'a>>,
+    source_code: &'a str,
     start: usize,
     current: usize,
     line: usize,
     had_error: bool,
 }
 
-impl Tokenizer {
-    pub fn new(source_code: String) -> Tokenizer {
+impl<'a> Tokenizer<'a> {
+    pub fn new(source_code: &'a str) -> Self {
         Tokenizer {
             tokens: vec![],
             source_code,
@@ -103,14 +103,14 @@ impl Tokenizer {
         }
     }
 
-    pub fn scan_tokens(mut self) -> (Vec<Token>, bool) {
+    pub fn scan_tokens(mut self) -> (Vec<Token<'a>>, bool) {
         while !&self.is_at_end() {
             self.start = self.current;
             self.scan_token();
         }
 
         self.tokens
-            .push(Token::new(TokenType::EOF, String::new(), self.line));
+            .push(Token::new(TokenType::EOF, "", self.line));
         (self.tokens, self.had_error)
     }
 
@@ -310,7 +310,7 @@ impl Tokenizer {
         }
         let text = &self.source_code[self.start + buf..self.current - buf];
         self.tokens
-            .push(Token::new(token_type, text.to_string(), self.line));
+            .push(Token::new(token_type, text, self.line));
     }
 }
 

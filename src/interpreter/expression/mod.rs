@@ -9,17 +9,17 @@ use crate::interpreter::interpreter::*;
 use crate::lexer::*;
 use crate::values::*;
 
-pub fn evaluate_expr(
-    expr: Expr,
-    env: &Rc<RefCell<Environment>>,
-) -> Result<RuntimeVal, RuntimeError> {
+pub fn evaluate_expr<'a>(
+    expr: Expr<'a>,
+    env: &Rc<RefCell<Environment<'a>>>,
+) -> Result<RuntimeVal<'a>, RuntimeError> {
     match expr {
         Expr::NumericLiteral(num) => Ok(make_number(num)),
         Expr::Null => Ok(make_nil()),
         Expr::BoolLiteral(bit) => Ok(make_bool(bit)),
-        Expr::StringLiteral(str) => Ok(make_string(str.to_owned())),
-        Expr::Identifier(symbol) => evaluate_identifier(symbol.to_string(), env),
-        Expr::This => evaluate_identifier("this".to_string(), env),
+        Expr::StringLiteral(str) => Ok(make_string(str)),
+        Expr::Identifier(symbol) => evaluate_identifier(symbol, env),
+        Expr::This => evaluate_identifier("this", env),
         Expr::Member {
             object,
             property,
@@ -46,8 +46,8 @@ pub fn evaluate_expr(
     }
 }
 
-fn evaluate_numeric_binary_expr(lhs: f64, rhs: f64, operator: String) -> RuntimeVal {
-    make_number(match &operator[..] {
+fn evaluate_numeric_binary_expr<'a>(lhs: f64, rhs: f64, operator: &'a str) -> RuntimeVal<'a> {
+    make_number(match operator {
         "+" => lhs + rhs,
         "-" => lhs - rhs,
         "*" => lhs * rhs,
@@ -56,12 +56,12 @@ fn evaluate_numeric_binary_expr(lhs: f64, rhs: f64, operator: String) -> Runtime
     })
 }
 
-fn evaluate_binary_expr(
-    left: Box<Expr>,
-    operator: Token,
-    right: Box<Expr>,
-    env: &Rc<RefCell<Environment>>,
-) -> Result<RuntimeVal, RuntimeError> {
+fn evaluate_binary_expr<'a>(
+    left: Box<Expr<'a>>,
+    operator: Token<'a>,
+    right: Box<Expr<'a>>,
+    env: &Rc<RefCell<Environment<'a>>>,
+) -> Result<RuntimeVal<'a>, RuntimeError> {
     let left_hand_side = evaluate_expr(*left, env)?;
     let right_hand_side = evaluate_expr(*right, env)?;
     if let RuntimeVal::Number(lhs) = left_hand_side {
@@ -72,11 +72,11 @@ fn evaluate_binary_expr(
     Err(RuntimeError::MisMatchTypes)
 }
 
-fn evaluate_assignment(
-    assignee: Box<Expr>,
-    value: Box<Expr>,
-    env: &Rc<RefCell<Environment>>,
-) -> Result<RuntimeVal, RuntimeError> {
+fn evaluate_assignment<'a>(
+    assignee: Box<Expr<'a>>,
+    value: Box<Expr<'a>>,
+    env: &Rc<RefCell<Environment<'a>>>,
+) -> Result<RuntimeVal<'a>, RuntimeError> {
     match *assignee {
         Expr::Identifier(ident) => {
             let value = evaluate_expr(*value, env)?;
@@ -94,17 +94,17 @@ fn evaluate_assignment(
     }
 }
 
-fn evaluate_identifier(
-    ident: String,
-    env: &Rc<RefCell<Environment>>,
-) -> Result<RuntimeVal, RuntimeError> {
+fn evaluate_identifier<'a>(
+    ident: &'a str,
+    env: &Rc<RefCell<Environment<'a>>>,
+) -> Result<RuntimeVal<'a>, RuntimeError> {
     lookup_var(env, ident)
 }
 
-fn evaluate_object_expr(
-    obj: Vec<Property>,
-    env: &Rc<RefCell<Environment>>,
-) -> Result<RuntimeVal, RuntimeError> {
+fn evaluate_object_expr<'a>(
+    obj: Vec<Property<'a>>,
+    env: &Rc<RefCell<Environment<'a>>>,
+) -> Result<RuntimeVal<'a>, RuntimeError> {
     let mut map = HashMap::new();
 
     for prop in obj {
@@ -112,19 +112,19 @@ fn evaluate_object_expr(
         if let Some(expr) = prop.value {
             runtime_val = evaluate_expr(*expr, env)?;
         } else {
-            runtime_val = lookup_var(env, prop.key.clone())?;
+            runtime_val = lookup_var(env, prop.key)?;
         }
         map.insert(prop.key, runtime_val);
     }
     Ok(make_obj(map))
 }
 
-fn evaluate_compare_expr(
-    left: Box<Expr>,
-    operator: Token,
-    right: Box<Expr>,
-    env: &Rc<RefCell<Environment>>,
-) -> Result<RuntimeVal, RuntimeError> {
+fn evaluate_compare_expr<'a>(
+    left: Box<Expr<'a>>,
+    operator: Token<'a>,
+    right: Box<Expr<'a>>,
+    env: &Rc<RefCell<Environment<'a>>>,
+) -> Result<RuntimeVal<'a>, RuntimeError> {
     let left_hand_side = evaluate_expr(*left, env)?;
     let right_hand_side = evaluate_expr(*right, env)?;
 
@@ -139,14 +139,14 @@ fn evaluate_compare_expr(
     }
 }
 
-fn evaluate_logical_expr(
-    left: RuntimeVal,
-    right: RuntimeVal,
-    operator: String,
-) -> Result<RuntimeVal, RuntimeError> {
+fn evaluate_logical_expr<'a>(
+    left: RuntimeVal<'a>,
+    right: RuntimeVal<'a>,
+    operator: &'a str,
+) -> Result<RuntimeVal<'a>, RuntimeError> {
     if let RuntimeVal::Bool(lhs) = left {
         if let RuntimeVal::Bool(rhs) = right {
-            return match &operator[..] {
+            return match operator {
                 "and" => Ok(make_bool(lhs && rhs)),
                 _ => Ok(make_bool(lhs || rhs)),
             };
@@ -155,14 +155,14 @@ fn evaluate_logical_expr(
     Err(RuntimeError::MisMatchTypes)
 }
 
-fn evaluate_equality_expr(
-    left: RuntimeVal,
-    right: RuntimeVal,
-    operator: String,
-) -> Result<RuntimeVal, RuntimeError> {
+fn evaluate_equality_expr<'a>(
+    left: RuntimeVal<'a>,
+    right: RuntimeVal<'a>,
+    operator: &'a str,
+) -> Result<RuntimeVal<'a>, RuntimeError> {
     if let RuntimeVal::Number(num1) = left {
         if let RuntimeVal::Number(num2) = right {
-            return Ok(make_bool(match &operator[..] {
+            return Ok(make_bool(match operator {
                 "==" => num1 == num2,
                 _ => num1 != num2,
             }));
@@ -171,7 +171,7 @@ fn evaluate_equality_expr(
 
     if let RuntimeVal::Bool(bit1) = left {
         if let RuntimeVal::Bool(bit2) = right {
-            return Ok(make_bool(match &operator[..] {
+            return Ok(make_bool(match operator {
                 "==" => bit1 == bit2,
                 _ => bit1 != bit2,
             }));
@@ -180,7 +180,7 @@ fn evaluate_equality_expr(
 
     if let RuntimeVal::String(str1) = left {
         if let RuntimeVal::String(str2) = right {
-            return Ok(make_bool(match &operator[..] {
+            return Ok(make_bool(match operator {
                 "==" => str1 == str2,
                 _ => str1 != str2,
             }));
@@ -190,14 +190,14 @@ fn evaluate_equality_expr(
     Err(RuntimeError::MisMatchTypes)
 }
 
-fn evaluate_comparison_expr(
-    left: RuntimeVal,
-    right: RuntimeVal,
-    operator: String,
-) -> Result<RuntimeVal, RuntimeError> {
+fn evaluate_comparison_expr<'a>(
+    left: RuntimeVal<'a>,
+    right: RuntimeVal<'a>,
+    operator: &'a str,
+) -> Result<RuntimeVal<'a>, RuntimeError> {
     if let RuntimeVal::Number(num1) = left {
         if let RuntimeVal::Number(num2) = right {
-            return Ok(make_bool(match &operator[..] {
+            return Ok(make_bool(match operator {
                 ">" => num1 > num2,
                 ">=" => num1 >= num2,
                 "<" => num1 < num2,
@@ -208,7 +208,7 @@ fn evaluate_comparison_expr(
 
     if let RuntimeVal::Bool(bit1) = left {
         if let RuntimeVal::Bool(bit2) = right {
-            return Ok(make_bool(match &operator[..] {
+            return Ok(make_bool(match operator {
                 ">" => bit1 > bit2,
                 ">=" => bit1 >= bit2,
                 "<" => bit1 < bit2,
@@ -219,7 +219,7 @@ fn evaluate_comparison_expr(
 
     if let RuntimeVal::String(str1) = left {
         if let RuntimeVal::String(str2) = right {
-            return Ok(make_bool(match &operator[..] {
+            return Ok(make_bool(match operator {
                 ">" => str1 > str2,
                 ">=" => str1 >= str2,
                 "<" => str1 < str2,
@@ -231,11 +231,11 @@ fn evaluate_comparison_expr(
     Err(RuntimeError::MisMatchTypes)
 }
 
-fn evaluate_unary_expr(
-    operator: Token,
-    right: Box<Expr>,
-    env: &Rc<RefCell<Environment>>,
-) -> Result<RuntimeVal, RuntimeError> {
+fn evaluate_unary_expr<'a>(
+    operator: Token<'a>,
+    right: Box<Expr<'a>>,
+    env: &Rc<RefCell<Environment<'a>>>,
+) -> Result<RuntimeVal<'a>, RuntimeError> {
     let value = evaluate_expr(*right, env)?;
 
     if operator.token_type == TokenType::BANG {
@@ -251,26 +251,26 @@ fn evaluate_unary_expr(
     }
 }
 
-fn evaluate_function_call(
-    args: Vec<Expr>,
-    caller: Box<Expr>,
-    env: &Rc<RefCell<Environment>>,
-) -> Result<RuntimeVal, RuntimeError> {
+fn evaluate_function_call<'a>(
+    args: Vec<Expr<'a>>,
+    caller: Box<Expr<'a>>,
+    env: &Rc<RefCell<Environment<'a>>>,
+) -> Result<RuntimeVal<'a>, RuntimeError> {
     let call = evaluate_expr(*caller, env)?;
 
     function_call(args, call, env)
 }
 
-fn function_call(
-    args: Vec<Expr>,
-    call: RuntimeVal,
-    env: &Rc<RefCell<Environment>>,
-) -> Result<RuntimeVal, RuntimeError> {
+fn function_call<'a>(
+    args: Vec<Expr<'a>>,
+    call: RuntimeVal<'a>,
+    env: &Rc<RefCell<Environment<'a>>>,
+) -> Result<RuntimeVal<'a>, RuntimeError> {
     match call {
         RuntimeVal::Class { name, methods, .. } => {
             let instance_env = Environment::new(None);
-            let constructor = methods.get(name.as_str());
-            let instance = make_instance(name.clone(), instance_env);
+            let constructor = methods.get(name);
+            let instance = make_instance(name, instance_env);
             match constructor {
                 Some(func) => {
                     if let RuntimeVal::Function {
@@ -281,7 +281,7 @@ fn function_call(
                     } = func
                     {
                         let local_env = Environment::new(Some(Rc::clone(&closure)));
-                        declare_var(&local_env, String::from("this"), instance.clone(), true)?;
+                        declare_var(&local_env, "this", instance.clone(), true)?;
                         if args.len() < params.len() {
                             return Err(RuntimeError::LessFuncArguments);
                             // panic!("Invalid number of arguments to function {name}");
@@ -292,7 +292,7 @@ fn function_call(
                         }
                         for i in 0..args.len() {
                             let value = evaluate_expr(args[i].clone(), &local_env)?;
-                            declare_var(&local_env, params[i].clone(), value, false)?;
+                            declare_var(&local_env, params[i], value, false)?;
                         }
 
                         for stmt in body {
@@ -316,7 +316,7 @@ fn function_call(
             } = *func
             {
                 let local_env = Environment::new(Some(Rc::clone(&closure)));
-                declare_var(&local_env, String::from("this"), *instance, true)?;
+                declare_var(&local_env, "this", *instance, true)?;
                 if args.len() < params.len() {
                     return Err(RuntimeError::LessFuncArguments);
                     // panic!("Invalid number of arguments to function {name}");
@@ -327,7 +327,7 @@ fn function_call(
                 }
                 for i in 0..args.len() {
                     let value = evaluate_expr(args[i].clone(), env)?;
-                    declare_var(&local_env, params[i].clone(), value, false)?;
+                    declare_var(&local_env, params[i], value, false)?;
                 }
 
                 for stmt in body {
@@ -355,7 +355,7 @@ fn function_call(
             }
             for i in 0..args.len() {
                 let value = evaluate_expr(args[i].clone(), env)?;
-                declare_var(&local_env, params[i].clone(), value, false)?;
+                declare_var(&local_env, params[i], value, false)?;
             }
 
             for stmt in body {
@@ -378,19 +378,19 @@ fn function_call(
     Ok(make_nil())
 }
 
-fn evaluate_member_expr(
-    object: Expr,
-    property: Expr,
+fn evaluate_member_expr<'a>(
+    object: Expr<'a>,
+    property: Expr<'a>,
     computed: bool,
-    env: &Rc<RefCell<Environment>>,
-) -> Result<RuntimeVal, RuntimeError> {
+    env: &Rc<RefCell<Environment<'a>>>,
+) -> Result<RuntimeVal<'a>, RuntimeError> {
     let mut obj = evaluate_expr(object, env)?;
 
     if computed {
         let key = evaluate_expr(property, env)?;
         match (obj, key) {
             (RuntimeVal::Object(map), RuntimeVal::String(str)) => {
-                let value = map.get(str.as_str());
+                let value = map.get(str);
                 match value {
                     Some(val) => return Ok(val.clone()),
                     None => return Ok(make_nil()),
@@ -409,7 +409,7 @@ fn evaluate_member_expr(
         loop {
             match obj {
                 RuntimeVal::Object(map) => {
-                    let res = map.get(lexeme.clone().as_str());
+                    let res = map.get(lexeme);
                     match res {
                         Some(value) => return Ok(value.clone()),
                         None => return Err(RuntimeError::ObjectField),
@@ -444,9 +444,9 @@ fn evaluate_member_expr(
                 RuntimeVal::Instance {
                     class_name,
                     instance_env,
-                } => match lookup_var(&instance_env, lexeme.clone()) {
+                } => match lookup_var(&instance_env, lexeme) {
                     Ok(value) => return Ok(value),
-                    Err(_) => match lookup_var(&env, class_name.clone()) {
+                    Err(_) => match lookup_var(&env, class_name) {
                         Ok(class) => {
                             method_exists =
                                 Some(make_instance(class_name, Rc::clone(&instance_env)));
@@ -462,13 +462,13 @@ fn evaluate_member_expr(
     }
 }
 
-fn equate_member_expr(
-    object: Expr,
-    property: Expr,
+fn equate_member_expr<'a>(
+    object: Expr<'a>,
+    property: Expr<'a>,
     computed: bool,
-    value: Expr,
-    env: &Rc<RefCell<Environment>>,
-) -> Result<RuntimeVal, RuntimeError> {
+    value: Expr<'a>,
+    env: &Rc<RefCell<Environment<'a>>>,
+) -> Result<RuntimeVal<'a>, RuntimeError> {
     // computed -> [] -> array, vector, etc
     // not -> . -> class, objects
 
@@ -492,7 +492,7 @@ fn equate_member_expr(
         }
         match obj {
             RuntimeVal::Object(mut map) => {
-                map.insert(lexeme.clone(), result.clone());
+                map.insert(lexeme, result.clone());
             }
             RuntimeVal::Class {
                 mut static_fields,
@@ -503,11 +503,11 @@ fn equate_member_expr(
                 if let Some(_) = method {
                     return Err(RuntimeError::MisMatchTypes);
                 }
-                static_fields.insert(lexeme.clone(), result.clone());
+                static_fields.insert(lexeme, result.clone());
             }
             RuntimeVal::Instance { instance_env, .. } => {
-                if let Err(_) = declare_var(&instance_env, lexeme.clone(), result.clone(), false) {
-                    assign_var(&instance_env, lexeme.clone(), result.clone())?;
+                if let Err(_) = declare_var(&instance_env, lexeme, result.clone(), false) {
+                    assign_var(&instance_env, lexeme, result.clone())?;
                 }
             }
             _ => panic!(),

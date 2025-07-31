@@ -9,14 +9,14 @@ use crate::values::RuntimeVal;
 use crate::values::make_native_function;
 
 #[derive(Debug)]
-pub struct Environment {
-    parent: Option<Rc<RefCell<Environment>>>,
-    variables: HashMap<String, RuntimeVal>,
-    constants: HashSet<String>,
+pub struct Environment<'a> {
+    parent: Option<Rc<RefCell<Environment<'a>>>>,
+    variables: HashMap<&'a str, RuntimeVal<'a>>,
+    constants: HashSet<&'a str>,
 }
 
-impl Environment {
-    pub fn new(parent_env: Option<Rc<RefCell<Environment>>>) -> Rc<RefCell<Self>> {
+impl<'a> Environment<'a> {
+    pub fn new(parent_env: Option<Rc<RefCell<Environment<'a>>>>) -> Rc<RefCell<Self>> {
         let env = Rc::new(RefCell::new(Environment {
             parent: parent_env,
             variables: HashMap::new(),
@@ -30,63 +30,56 @@ impl Environment {
 pub fn set_global_scope(env: &Rc<RefCell<Environment>>) {
     let _ = declare_var(
         env,
-        String::from("clock"),
+        "clock",
         make_native_function(clock),
         true,
     );
-    let _ = declare_var(env, String::from("min"), make_native_function(min), true);
-    let _ = declare_var(env, String::from("max"), make_native_function(max), true);
+    let _ = declare_var(env, "min", make_native_function(min), true);
+    let _ = declare_var(env, "max", make_native_function(max), true);
     let _ = declare_var(
         env,
-        String::from("number"),
+        "number",
         make_native_function(number),
         true,
     );
-    let _ = declare_var(env, String::from("bool"), make_native_function(bool), true);
+    let _ = declare_var(env, "bool", make_native_function(bool), true);
     let _ = declare_var(
         env,
-        String::from("string"),
+        "string",
         make_native_function(string),
         true,
     );
     let _ = declare_var(
         env,
-        String::from("var_type"),
+        "var_type",
         make_native_function(var_type),
-        true,
-    );
-
-    let _ = declare_var(
-        env,
-        String::from("reverse"),
-        make_native_function(reverse),
         true,
     );
 }
 
-pub fn declare_var(
-    env: &Rc<RefCell<Environment>>,
-    var_name: String,
-    value: RuntimeVal,
+pub fn declare_var<'a>(
+    env: &Rc<RefCell<Environment<'a>>>,
+    var_name: &'a str,
+    value: RuntimeVal<'a>,
     constant: bool,
-) -> Result<RuntimeVal, RuntimeError> {
+) -> Result<RuntimeVal<'a>, RuntimeError> {
     let mut env = env.borrow_mut();
-    if env.variables.contains_key(&var_name) {
+    if env.variables.contains_key(var_name) {
         return Err(RuntimeError::DeclareVar);
     }
-    env.variables.insert(var_name.clone(), value.clone());
+    env.variables.insert(var_name, value.clone());
     if constant {
         env.constants.insert(var_name);
     }
     Ok(value)
 }
 
-pub fn assign_var(
-    env: &Rc<RefCell<Environment>>,
-    var_name: String,
-    value: RuntimeVal,
-) -> Result<RuntimeVal, RuntimeError> {
-    let final_env = resolve(env, var_name.clone())?;
+pub fn assign_var<'a>(
+    env: &Rc<RefCell<Environment<'a>>>,
+    var_name: &'a str,
+    value: RuntimeVal<'a>,
+) -> Result<RuntimeVal<'a>, RuntimeError> {
+    let final_env = resolve(env, var_name)?;
     let mut env = final_env.borrow_mut();
 
     if env.constants.contains(&var_name) {
@@ -96,8 +89,8 @@ pub fn assign_var(
     Ok(value)
 }
 
-pub fn lookup_var(env: &Rc<RefCell<Environment>>, var_name: String) -> Result<RuntimeVal, RuntimeError> {
-    let final_env = resolve(env, var_name.clone())?;
+pub fn lookup_var<'a>(env: &Rc<RefCell<Environment<'a>>>, var_name: &'a str) -> Result<RuntimeVal<'a>, RuntimeError> {
+    let final_env = resolve(env, var_name)?;
     let env = final_env.borrow();
     match env.variables.get(&var_name) {
         Some(v) => Ok(v.clone()),
@@ -105,11 +98,11 @@ pub fn lookup_var(env: &Rc<RefCell<Environment>>, var_name: String) -> Result<Ru
     }
 }
 
-pub fn resolve(
-    env: &Rc<RefCell<Environment>>,
-    var_name: String,
-) -> Result<Rc<RefCell<Environment>>, RuntimeError> {
-    if env.borrow().variables.contains_key(&var_name) {
+pub fn resolve<'a>(
+    env: &Rc<RefCell<Environment<'a>>>,
+    var_name: &'a str,
+) -> Result<Rc<RefCell<Environment<'a>>>, RuntimeError> {
+    if env.borrow().variables.contains_key(var_name) {
         return Ok(Rc::clone(env));
     }
     match &env.borrow().parent {
