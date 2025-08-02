@@ -1,314 +1,418 @@
 use std::collections::HashMap;
 
 use crate::ast::*;
+use crate::environment::Scope;
 use crate::handle_errors::*;
 use crate::lexer::*;
-use crate::parser::expression::*;
 use crate::parser::parser::*;
 
-pub fn parse_var_declaration(tokens: &mut Vec<Token>) -> Result<Stmt, ParserError> {
-    let is_constant = eat(tokens).token_type == TokenType::CONST;
-    let identifier = expect(
-        tokens,
-        TokenType::IDENTIFIER,
-        "Expected identifier name following var | const keyword",
-    )?
-    .lexeme;
-
-    if at(tokens).token_type == TokenType::SEMICOLON {
-        let _ = eat(tokens);
-        if is_constant {
-            return Err(ParserError::ConstValueNull);
-        }
-
-        return Ok(Stmt::VarDeclaration(VarDeclaration {
-            constant: false,
-            identifier: identifier,
-            value: Box::new(Expr::Null),
-        }));
-    }
-    expect(tokens, TokenType::EQUAL, "Expected equals in assignment")?;
-    let declaration = Stmt::VarDeclaration(VarDeclaration { // Original code
-        constant: is_constant,
-        identifier: identifier,
-        value: Box::new(parse_expr(tokens)?),
-    });
-
-    expect(
-        tokens,
-        TokenType::SEMICOLON,
-        "Expected semicolon at end of statement",
-    )?;
-    Ok(declaration)
-}
-
-pub fn parse_print_statement(
-    tokens: &mut Vec<Token>,
-    new_line: bool,
-) -> Result<Stmt, ParserError> {
-    eat(tokens);
-    if at(tokens).token_type == TokenType::SEMICOLON {
-        eat(tokens);
-        return Ok(Stmt::Print(None, new_line));
-    }
-    let expr = parse_expr(tokens)?;
-    let mut expressions = vec![expr];
-    
-    while at(tokens).token_type == TokenType::COMMA {
-        eat(tokens);
-        expressions.push(parse_expr(tokens)?);
-    }
-    
-    expect(
-        tokens,
-        TokenType::SEMICOLON,
-        "Every statement must end in semicolon",
-    )?;
-    Ok(Stmt::Print(Some(expressions), new_line))
-}
-
-pub fn parse_if_else_statement(tokens: &mut Vec<Token>) -> Result<Stmt, ParserError> {
-    eat(tokens);
-    let expr = parse_expr(tokens)?;
-    expect(
-        tokens,
-        TokenType::LEFTBRACE,
-        "Expected open brace for if block",
-    )?;
-    let mut statements = vec![];
-    while at(tokens).token_type != TokenType::RIGHTBRACE {
-        statements.push(parse_stmt(tokens)?);
-    }
-    expect(
-        tokens,
-        TokenType::RIGHTBRACE,
-        "Expected close brace for if block",
-    )?;
-    let mut if_collection = vec![(expr, statements)];
-
-    loop {
-        if at(tokens).token_type != TokenType::ELSE {
-            break;
-        }
-        eat(tokens);
-
-        let expr;
-        if at(tokens).token_type == TokenType::IF {
-            eat(tokens);
-            expr = parse_expr(tokens)?;
-        } else {
-            expr = Expr::BoolLiteral(true);
-        }
-
-        expect(
-            tokens,
-            TokenType::LEFTBRACE,
-            "Expected open brace for else if block",
-        )?;
-        let mut statements = vec![];
-        while at(tokens).token_type != TokenType::RIGHTBRACE {
-            match parse_stmt(tokens) {
-                Ok(s) => statements.push(s),
-                Err(e) => return Err(e),
-            };
-        }
-        expect(
-            tokens,
-            TokenType::RIGHTBRACE,
-            "Expected close brace for else if block",
-        )?;
-        if_collection.push((expr, statements));
-    }
-    Ok(Stmt::IfElse(if_collection))
-}
-
-pub fn parse_for_statement(tokens: &mut Vec<Token>) -> Result<Stmt, ParserError> {
-    let _ = eat(tokens);
-
-    if at(tokens).token_type == TokenType::SEMICOLON {
-        return Err(ParserError::ForLoopDeclaration(""));
-    }
-    let var_stmt = parse_stmt(tokens)?;
-
-    if at(tokens).token_type == TokenType::SEMICOLON {
-        return Err(ParserError::ForLoopDeclaration(""));
-    }
-    let expr1 = parse_expr(tokens)?;
-    let _ = eat(tokens);
-
-    if at(tokens).token_type == TokenType::LEFTBRACE {
-        return Err(ParserError::ForLoopDeclaration(""));
-    }
-    let expr2 = parse_expr(tokens)?;
-
-    expect(
-        tokens,
-        TokenType::LEFTBRACE,
-        "Expected open brace for while loop",
-    )?;
-
-    let mut stmt = vec![];
-    while at(tokens).token_type != TokenType::RIGHTBRACE {
-        stmt.push(parse_stmt(tokens)?);
-    }
-
-    expect(
-        tokens,
-        TokenType::RIGHTBRACE,
-        "Expected close brace for while loop",
-    )?;
-
-    Ok(Stmt::For(((Box::new(var_stmt), expr1, expr2), stmt)))
-}
-
-pub fn parse_while_statement(tokens: &mut Vec<Token>) -> Result<Stmt, ParserError> {
-    eat(tokens);
-    let expr = parse_expr(tokens)?;
-    expect(
-        tokens,
-        TokenType::LEFTBRACE,
-        "Expected open brace for while loop",
-    )?;
-
-    let mut stmt = vec![];
-    while at(tokens).token_type != TokenType::RIGHTBRACE {
-        match parse_stmt(tokens) {
-            Ok(s) => stmt.push(s),
-            Err(e) => return Err(e),
-        }
-    }
-
-    expect(
-        tokens,
-        TokenType::RIGHTBRACE,
-        "Expected close brace for while loop",
-    )?;
-
-    Ok(Stmt::While((expr, stmt)))
-}
-
-pub fn parse_block_statement(tokens: &mut Vec<Token>) -> Result<Stmt, ParserError> {
-    eat(tokens);
-    let mut stmts = vec![];
-    while at(tokens).token_type != TokenType::RIGHTBRACE {
-        stmts.push(parse_stmt(tokens)?);
-    }
-    expect(
-        tokens,
-        TokenType::RIGHTBRACE,
-        "Expected right brace at end of block",
-    )?;
-    Ok(Stmt::Block(stmts))
-}
-
-pub fn parse_function_statement(tokens: &mut Vec<Token>) -> Result<Stmt, ParserError> {
-    eat(tokens);
-
-    let name = expect(
-        tokens,
-        TokenType::IDENTIFIER,
-        "Expected identifier as function name",
-    )?
-    .lexeme;
-    expect(
-        tokens,
-        TokenType::LEFTPAREN,
-        "Expected open paren for function",
-    )?;
-
-    let mut parameters = vec![];
-
-    while at(tokens).token_type != TokenType::RIGHTPAREN {
-        parameters.push(
-            expect(
-                tokens,
+impl Parser {
+    pub fn parse_var_declaration(&mut self) -> Result<Stmt, ParserError> {
+        let is_constant = self.eat().token_type == TokenType::CONST;
+        let identifier = self
+            .expect(
                 TokenType::IDENTIFIER,
-                "Expected identifier as parameter of function",
+                "Expected identifier name following 'var' and 'const' keyword",
             )?
-            .lexeme,
-        );
-        if at(tokens).token_type != TokenType::COMMA
-            && at(tokens).token_type != TokenType::RIGHTPAREN
-        {
-            return Err(ParserError::UnExpectedToken(
-                "Expected comma | closing paranthesis in function declaration",
+            .lexeme;
+
+        if self.at().token_type == TokenType::SEMICOLON {
+            let line = self.eat().line;
+            if is_constant {
+                return Err(ParserError::ConstValueNull(line));
+            }
+
+            return Ok(Stmt::VarDeclaration(VarDeclaration {
+                constant: false,
+                identifier: identifier,
+                value: Box::new(Expr::Null(line)),
+            }));
+        }
+        let _ = self.expect(
+            TokenType::EQUAL,
+            "Expected '=' for initialization of variable",
+        )?;
+        let declaration = Stmt::VarDeclaration(VarDeclaration {
+            constant: is_constant,
+            identifier: identifier,
+            value: Box::new(self.parse_expr()?),
+        });
+
+        let _ = self.expect(
+            TokenType::SEMICOLON,
+            "Expected ';' at the end of variable declaration",
+        )?;
+        Ok(declaration)
+    }
+
+    pub fn parse_print_statement(&mut self, new_line: bool) -> Result<Stmt, ParserError> {
+        if let Scope::Global = self.scope.last().unwrap() {
+            return Err(ParserError::ScopeError(
+                "Print statement not allowed in global scope".to_string(),
+                self.at().line,
             ));
         }
-        if at(tokens).token_type == TokenType::COMMA {
-            eat(tokens);
+        if let Scope::Class(class_name) = self.scope.last().unwrap() {
+            return Err(ParserError::ScopeError(
+                format!(
+                    "Invalid print statement inside class '{}'. Only method and field declarations are allowed.",
+                    class_name
+                ),
+                self.at().line,
+            ));
         }
+        self.eat();
+        if self.at().token_type == TokenType::SEMICOLON {
+            self.eat();
+            return Ok(Stmt::Print(None, new_line));
+        }
+        let expr = self.parse_expr()?;
+        let mut expressions = vec![expr];
+
+        while self.at().token_type == TokenType::COMMA {
+            self.eat();
+            expressions.push(self.parse_expr()?);
+        }
+
+        let _ = self.expect(
+            TokenType::SEMICOLON,
+            "Expected ';' at end of print statement",
+        )?;
+        Ok(Stmt::Print(Some(expressions), new_line))
     }
 
-    expect(
-        tokens,
-        TokenType::RIGHTPAREN,
-        "Expected closed paren for function",
-    )?;
+    pub fn parse_if_else_statement(&mut self) -> Result<Stmt, ParserError> {
+        if let Scope::Global = self.scope.last().unwrap() {
+            return Err(ParserError::ScopeError(
+                "if-else statements not allowed in global scope".to_string(),
+                self.at().line,
+            ));
+        }
+        if let Scope::Class(class_name) = self.scope.last().unwrap() {
+            return Err(ParserError::ScopeError(
+                format!(
+                    "Invalid if-else statements inside class '{}'. Only method and field declarations are allowed.",
+                    class_name
+                ),
+                self.at().line,
+            ));
+        }
+        self.eat();
+        let expr = self.parse_expr()?;
+        let _ = self.expect(
+            TokenType::LEFTBRACE,
+            "Missing '{' to start the body of the if block",
+        )?;
+        let mut statements = vec![];
+        while self.at().token_type != TokenType::RIGHTBRACE {
+            statements.push(self.parse_stmt()?);
+        }
+        let _ = self.expect(
+            TokenType::RIGHTBRACE,
+            "Missing '}' to end the body of the if block",
+        )?;
+        let mut if_collection = vec![(expr, statements)];
 
-    let mut body = vec![];
-    expect(
-        tokens,
-        TokenType::LEFTBRACE,
-        "Expected open brace for function definition",
-    )?;
-
-    while at(tokens).token_type != TokenType::RIGHTBRACE {
-        body.push(parse_stmt(tokens)?);
-    }
-
-    expect(
-        tokens,
-        TokenType::RIGHTBRACE,
-        "Expected closed brace for function definition",
-    )?;
-    Ok(Stmt::Function(FunctionDeclaration {
-        name: name,
-        parameters: parameters,
-        body: body,
-    }))
-}
-
-pub fn parse_class_statement(tokens: &mut Vec<Token>) -> Result<Stmt, ParserError> {
-    eat(tokens);
-
-    let name = expect(tokens, TokenType::IDENTIFIER, "Class name missing")?.lexeme;
-
-    let mut superclass = None;
-
-    if at(tokens).token_type == TokenType::LESS {
-        eat(tokens);
-        superclass = Some(
-            expect(
-                tokens,
-                TokenType::IDENTIFIER,
-                "Expected class name for inheritance",
-            )?
-            .lexeme,
-        );
-    }
-
-    let mut var = vec![];
-    let mut methods = HashMap::new();
-
-    expect(tokens, TokenType::LEFTBRACE, "Left brace for class")?;
-
-    while at(tokens).token_type != TokenType::RIGHTBRACE {
-        let stmt = parse_stmt(tokens)?;
-        match stmt {
-            Stmt::VarDeclaration(var_stmt) => var.push(var_stmt),
-            Stmt::Function(method_stmt) => {
-                methods.insert(method_stmt.name.clone(), method_stmt);
+        let mut is_else_block;
+        let messages1 = [
+            "Missing '{' to start the body of the else if block",
+            "Missing '{' to start the body of the else block",
+        ];
+        let messages2 = [
+            "Missing '}' to end the body of the else if block",
+            "Missing '}' to end the body of the else block",
+        ];
+        loop {
+            if self.at().token_type != TokenType::ELSE {
+                break;
             }
-            _ => return Err(ParserError::InvalidClassStmt),
-        };
+            let line = self.eat().line;
+
+            let expr;
+            if self.at().token_type == TokenType::IF {
+                let _ = self.eat();
+                expr = self.parse_expr()?;
+                is_else_block = 0;
+            } else {
+                expr = Expr::BoolLiteral(true, line);
+                is_else_block = 1;
+            }
+
+            let _ = self.expect(TokenType::LEFTBRACE, messages1[is_else_block])?;
+            let mut statements = vec![];
+            while self.at().token_type != TokenType::RIGHTBRACE {
+                match self.parse_stmt() {
+                    Ok(s) => statements.push(s),
+                    Err(e) => return Err(e),
+                };
+            }
+            let _ = self.expect(TokenType::RIGHTBRACE, messages2[is_else_block])?;
+            if_collection.push((expr, statements));
+        }
+        Ok(Stmt::IfElse(if_collection))
     }
 
-    expect(tokens, TokenType::RIGHTBRACE, "Right brace for class")?;
+    pub fn parse_for_statement(&mut self) -> Result<Stmt, ParserError> {
+        if let Scope::Global = self.scope.last().unwrap() {
+            return Err(ParserError::ScopeError(
+                "for loop not allowed in global scope".to_string(),
+                self.at().line,
+            ));
+        }
+        if let Scope::Class(class_name) = self.scope.last().unwrap() {
+            return Err(ParserError::ScopeError(
+                format!(
+                    "Invalid for loop inside class '{}'. Only method and field declarations are allowed.",
+                    class_name
+                ),
+                self.at().line,
+            ));
+        }
+        self.scope.push(Scope::Loop);
+        let _ = self.eat();
 
-    Ok(Stmt::Class(ClassDeclaration {
-        name: name,
-        static_fields: var,
-        methods: methods,
-        superclass: superclass,
-    }))
+        if self.at().token_type == TokenType::SEMICOLON {
+            return Err(ParserError::ForLoopDeclaration(
+                "".to_string(),
+                self.at().line,
+            ));
+        }
+        let var_stmt = self.parse_stmt()?;
+
+        if self.at().token_type == TokenType::SEMICOLON {
+            return Err(ParserError::ForLoopDeclaration(
+                "".to_string(),
+                self.at().line,
+            ));
+        }
+        let expr1 = self.parse_expr()?;
+        let _ = self.eat();
+
+        if self.at().token_type == TokenType::LEFTBRACE {
+            return Err(ParserError::ForLoopDeclaration(
+                "".to_string(),
+                self.at().line,
+            ));
+        }
+        let expr2 = self.parse_expr()?;
+
+        let _ = self.expect(
+            TokenType::LEFTBRACE,
+            "Missing '{' to start the body of the for loop",
+        )?;
+
+        let mut stmt = vec![];
+        while self.at().token_type != TokenType::RIGHTBRACE {
+            stmt.push(self.parse_stmt()?);
+        }
+
+        let _ = self.expect(
+            TokenType::RIGHTBRACE,
+            "Missing '}' to end the body of the for loop",
+        )?;
+
+        self.scope.pop();
+        Ok(Stmt::For(((Box::new(var_stmt), expr1, expr2), stmt)))
+    }
+
+    pub fn parse_while_statement(&mut self) -> Result<Stmt, ParserError> {
+        if let Scope::Global = self.scope.last().unwrap() {
+            return Err(ParserError::ScopeError(
+                "while loop not allowed in global scope".to_string(),
+                self.at().line,
+            ));
+        }
+        if let Scope::Class(class_name) = self.scope.last().unwrap() {
+            return Err(ParserError::ScopeError(
+                format!(
+                    "Invalid while loop inside class '{}'. Only method and field declarations are allowed.",
+                    class_name
+                ),
+                self.at().line,
+            ));
+        }
+        self.scope.push(Scope::Loop);
+        let _ = self.eat();
+        let expr = self.parse_expr()?;
+        let _ = self.expect(
+            TokenType::LEFTBRACE,
+            "Missing '{' to start the body of the while loop",
+        )?;
+
+        let mut stmt = vec![];
+        while self.at().token_type != TokenType::RIGHTBRACE {
+            match self.parse_stmt() {
+                Ok(s) => stmt.push(s),
+                Err(e) => return Err(e),
+            }
+        }
+
+        let _ = self.expect(
+            TokenType::RIGHTBRACE,
+            "Missing '}' to start the body of the while loop",
+        )?;
+        self.scope.pop();
+        Ok(Stmt::While((expr, stmt)))
+    }
+
+    pub fn parse_block_statement(&mut self) -> Result<Stmt, ParserError> {
+        let _ = self.eat();
+        let mut stmts = vec![];
+        while self.at().token_type != TokenType::RIGHTBRACE {
+            stmts.push(self.parse_stmt()?);
+        }
+        let _ = self.expect(
+            TokenType::RIGHTBRACE,
+            "Missing '}' to end the body of the nlock statement",
+        )?;
+        Ok(Stmt::Block(stmts))
+    }
+
+    pub fn parse_function_statement(&mut self) -> Result<Stmt, ParserError> {
+        let _ = self.eat();
+
+        let name = self
+            .expect(
+                TokenType::IDENTIFIER,
+                "Expected function name after 'fun' keyword",
+            )?
+            .lexeme;
+        if let Scope::Class(class_name) = self.scope.last().unwrap() {
+            if class_name == &name {
+                self.scope.push(Scope::Constructor(name.clone()));
+            } else {
+                self.scope.push(Scope::Method(name.clone()));
+            }
+        } else {
+            self.scope.push(Scope::Function(name.clone()));
+        }
+        let _ = self.expect(
+            TokenType::LEFTPAREN,
+            format!("Missing '(' to declare parameters of function {}", name).as_str(),
+        )?;
+
+        let mut parameters = vec![];
+
+        while self.at().token_type != TokenType::RIGHTPAREN {
+            parameters.push(
+                self.expect(
+                    TokenType::IDENTIFIER,
+                    format!("Expected parameter name in function '{}'", name).as_str(),
+                )?
+                .lexeme,
+            );
+            if self.at().token_type != TokenType::COMMA
+                && self.at().token_type != TokenType::RIGHTPAREN
+            {
+                return Err(ParserError::UnExpectedToken(
+                    format!("Expected ',' or ')' in {} function declaration", name),
+                    self.at().line,
+                ));
+            }
+            if self.at().token_type == TokenType::COMMA {
+                let _ = self.eat();
+            }
+        }
+
+        let _ = self.expect(
+            TokenType::RIGHTPAREN,
+            format!("Missing ')' for parameter declaration in function {}", name).as_str(),
+        )?;
+
+        let mut body = vec![];
+        let _ = self.expect(
+            TokenType::LEFTBRACE,
+            format!("Missing '{{' to start the body of function {}", name).as_str(),
+        )?;
+
+        while self.at().token_type != TokenType::RIGHTBRACE {
+            body.push(self.parse_stmt()?);
+        }
+
+        let _ = self.expect(
+            TokenType::RIGHTBRACE,
+            format!("Missing '}}' to end the body of function {}", name).as_str(),
+        )?;
+        self.scope.pop();
+        Ok(Stmt::Function(FunctionDeclaration {
+            name: name,
+            parameters: parameters,
+            body: body,
+        }))
+    }
+
+    pub fn parse_class_statement(&mut self) -> Result<Stmt, ParserError> {
+        if self.scope.last().unwrap() != &Scope::Global {
+            return Err(ParserError::ScopeError(
+                "Class declarations are only allowed in the global scope".to_string(),
+                self.at().line,
+            ));
+        }
+        let _ = self.eat();
+
+        let name = self
+            .expect(
+                TokenType::IDENTIFIER,
+                "Expected class name after 'class' keyword",
+            )?
+            .lexeme;
+        self.scope.push(Scope::Class(name.clone()));
+
+        let mut superclass = None;
+
+        if self.at().token_type == TokenType::LESS {
+            let _ = self.eat();
+            superclass = Some(
+                self.expect(TokenType::IDENTIFIER, "Expected superclass name after '<'")?
+                    .lexeme,
+            );
+        }
+
+        let mut var = vec![];
+        let mut methods = HashMap::new();
+
+        let _ = self.expect(
+            TokenType::LEFTBRACE,
+            format!("Missing '{{' to start the body of class {}", name).as_str(),
+        )?;
+
+        while self.at().token_type != TokenType::RIGHTBRACE {
+            let stmt;
+            match self.parse_stmt() {
+                Ok(s) => stmt = s,
+                Err(e) => match e {
+                    ParserError::ScopeError(message, line) => {
+                        return Err(ParserError::ScopeError(
+                            format!(
+                                "Invalid {} inside class body. Only method and field declarations are allowed.",
+                                message
+                            ),
+                            line,
+                        ));
+                    }
+                    _ => return Err(e),
+                },
+            }
+            match stmt {
+                Stmt::VarDeclaration(var_stmt) => var.push(var_stmt),
+                Stmt::Function(method_stmt) => {
+                    methods.insert(method_stmt.name.clone(), method_stmt);
+                }
+                _ => {}
+            };
+        }
+
+        let _ = self.expect(
+            TokenType::RIGHTBRACE,
+            format!("Missing '}}' to end the body of class {}", name).as_str(),
+        )?;
+
+        self.scope.pop();
+        Ok(Stmt::Class(ClassDeclaration {
+            name: name,
+            static_fields: var,
+            methods: methods,
+            superclass: superclass,
+        }))
+    }
 }

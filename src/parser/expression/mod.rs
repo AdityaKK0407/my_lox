@@ -1,282 +1,365 @@
 use crate::ast::*;
+use crate::handle_errors::*;
 use crate::lexer::*;
 use crate::parser::parser::*;
-use crate::handle_errors::*;
+use crate::environment::Scope;
 
-pub fn parse_expr(tokens: &mut Vec<Token>) -> Result<Expr, ParserError> {
-    parse_assignment_expr(tokens)
-}
-
-fn parse_assignment_expr(tokens: &mut Vec<Token>) -> Result<Expr, ParserError> {
-    let left = parse_obj_expr(tokens)?;
-
-    if at(tokens).token_type == TokenType::EQUAL {
-        eat(tokens);
-        let value = parse_assignment_expr(tokens)?;
-        return Ok(Expr::AssignmentExpr {
-            assignee: Box::new(left),
-            value: Box::new(value),
-        });
+impl Parser {
+    pub fn parse_expr(&mut self) -> Result<Expr, ParserError> {
+        let result = self.parse_assignment_expr()?;
+        match self.scope.last().unwrap() {
+            Scope::Global => Err(ParserError::ScopeError("Invalid expression in global scope. Only declarations are allowed.".to_string(), self.at().line)),
+            Scope::Class(name) => Err(ParserError::ScopeError(format!("Invalid expression in class '{}'.", name), self.at().line)),
+            _ => Ok(result),
+        }
     }
-    
-    let (token, lexeme) = match at(tokens).token_type {
-        TokenType::MINUSEQUAL => (TokenType::MINUSEQUAL, String::from("-")),
-        TokenType::PLUSEQUAL => (TokenType::PLUSEQUAL, String::from("+")),
-        TokenType::SLASHEQUAL => (TokenType::SLASHEQUAL, String::from("/")),
-        TokenType::STAREQUAL => (TokenType::STAREQUAL, String::from("*")),
-        _ => return Ok(left),
-    };
-    let line = eat(tokens).line;
-    let value = parse_expr(tokens)?;
 
-    Ok(Expr::AssignmentExpr {
+    fn parse_assignment_expr(&mut self) -> Result<Expr, ParserError> {
+        let left = self.parse_obj_expr()?;
+
+        if self.at().token_type == TokenType::EQUAL {
+            let line = self.eat().line;
+            let value = self.parse_assignment_expr()?;
+            return Ok(Expr::AssignmentExpr {
+                assignee: Box::new(left),
+                value: Box::new(value),
+                line,
+            });
+        }
+
+        let (token, lexeme) = match self.at().token_type {
+            TokenType::MINUSEQUAL => (TokenType::MINUSEQUAL, String::from("-")),
+            TokenType::PLUSEQUAL => (TokenType::PLUSEQUAL, String::from("+")),
+            TokenType::SLASHEQUAL => (TokenType::SLASHEQUAL, String::from("/")),
+            TokenType::STAREQUAL => (TokenType::STAREQUAL, String::from("*")),
+            _ => return Ok(left),
+        };
+        let line = self.eat().line;
+        let value = self.parse_expr()?;
+
+        Ok(Expr::AssignmentExpr {
             assignee: Box::new(left.clone()),
-            value: Box::new(Expr::BinaryExpr { left: Box::new(left), operator: Token { token_type: token, lexeme, line: line }, right: Box::new(value) }),
-    })
-}
-
-fn parse_obj_expr(tokens: &mut Vec<Token>) -> Result<Expr, ParserError> {
-    if at(tokens).token_type != TokenType::LEFTBRACE {
-        return parse_logical_expr(tokens);
-    }
-
-    let _ = eat(tokens);
-    let mut properties = vec![];
-
-    while not_eof(tokens) && at(tokens).token_type != TokenType::RIGHTBRACE {
-        if at(tokens).token_type != TokenType::IDENTIFIER && at(tokens).token_type != TokenType::STRING {
-            return Err(ParserError::ObjectKey("Only string values and identifiers are allowed for object declaration"));
-        }
-        let key = eat(tokens);
-
-        if at(tokens).token_type == TokenType::COMMA {
-            eat(tokens);
-            properties.push(Property {
-                key: key.lexeme,
-                value: None,
-            });
-            continue;
-        } else if at(tokens).token_type == TokenType::RIGHTBRACE {
-            properties.push(Property {
-                key: key.lexeme,
-                value: None,
-            });
-            continue;
-        }
-        let _ = expect(
-            tokens,
-            TokenType::COLON,
-            "Expected colon for declaring value",
-        )?;
-        let value = parse_expr(tokens)?;
-
-        properties.push(Property {
-            key: key.lexeme,
-            value: Some(Box::new(value)),
-        });
-
-        if at(tokens).token_type != TokenType::RIGHTBRACE {
-            let _ = expect(tokens, TokenType::COMMA, "Expected comma or closing brace")?;
-        }
-    }
-
-    let _ = expect(tokens, TokenType::RIGHTBRACE, "Expected closing brace")?;
-
-    Ok(Expr::ObjectLiteral {
-        properties: properties,
-    })
-}
-
-fn parse_logical_expr(tokens: &mut Vec<Token>) -> Result<Expr, ParserError> {
-    let mut left = parse_equality_expr(tokens)?;
-
-    while at(tokens).token_type == TokenType::AND || at(tokens).token_type == TokenType::OR {
-        let operator = eat(tokens);
-        let right = parse_equality_expr(tokens)?;
-        left = Expr::ComparisonLiteral {
-            left: Box::new(left),
-            operator: operator,
-            right: Box::new(right),
-        };
-    }
-    Ok(left)
-}
-
-fn parse_equality_expr(tokens: &mut Vec<Token>) -> Result<Expr, ParserError> {
-    let mut left = parse_comparison_expr(tokens)?;
-
-    while at(tokens).token_type == TokenType::EQUALEQUAL
-        || at(tokens).token_type == TokenType::BANGEQUAL
-    {
-        let operator = eat(tokens);
-        let right = parse_comparison_expr(tokens)?;
-        left = Expr::ComparisonLiteral {
-            left: Box::new(left),
-            operator: operator,
-            right: Box::new(right),
-        };
-    }
-    Ok(left)
-}
-
-fn parse_comparison_expr(tokens: &mut Vec<Token>) -> Result<Expr, ParserError> {
-    let mut left = parse_additive_expr(tokens)?;
-
-    while at(tokens).token_type == TokenType::GREATER
-        || at(tokens).token_type == TokenType::GREATEREQUAL
-        || at(tokens).token_type == TokenType::LESS
-        || at(tokens).token_type == TokenType::LESSEQUAL
-    {
-        let operator = eat(tokens);
-        let right = parse_additive_expr(tokens)?;
-        left = Expr::ComparisonLiteral {
-            left: Box::new(left),
-            operator: operator,
-            right: Box::new(right),
-        };
-    }
-    Ok(left)
-}
-
-fn parse_additive_expr(tokens: &mut Vec<Token>) -> Result<Expr, ParserError> {
-    let mut left = parse_multiplicative_expr(tokens)?;
-
-    while at(tokens).lexeme == "+" || at(tokens).lexeme == "-" {
-        let operator = eat(tokens);
-        let right = parse_multiplicative_expr(tokens)?;
-        left = Expr::BinaryExpr {
-            left: Box::new(left),
-            operator: operator,
-            right: Box::new(right),
-        };
-    }
-    Ok(left)
-}
-
-fn parse_multiplicative_expr(tokens: &mut Vec<Token>) -> Result<Expr, ParserError> {
-    let mut left = parse_unary_expr(tokens)?;
-
-    while at(tokens).lexeme == "*" || at(tokens).lexeme == "/" || at(tokens).lexeme == "%" {
-        let operator = eat(tokens);
-        let right = parse_unary_expr(tokens)?;
-        left = Expr::BinaryExpr {
-            left: Box::new(left),
-            operator: operator,
-            right: Box::new(right),
-        };
-    }
-    Ok(left)
-}
-
-fn parse_unary_expr(tokens: &mut Vec<Token>) -> Result<Expr, ParserError> {
-    if at(tokens).token_type == TokenType::BANG || at(tokens).token_type == TokenType::MINUS {
-        let operator = eat(tokens);
-        let right = parse_expr(tokens)?;
-        Ok(Expr::Unary {
-            operator: operator,
-            right: Box::new(right),
+            value: Box::new(Expr::BinaryExpr {
+                left: Box::new(left),
+                operator: Token {
+                    token_type: token,
+                    lexeme,
+                    line: line,
+                },
+                right: Box::new(value),
+                line,
+            }),
+            line,
         })
-    } else {
-        parse_call_member_expr(tokens)
-    }
-}
-
-fn parse_call_member_expr(tokens: &mut Vec<Token>) -> Result<Expr, ParserError> {
-    let member = parse_member_expr(tokens)?;
-
-    if at(tokens).token_type == TokenType::LEFTPAREN {
-        return parse_call_expr(tokens, member);
-    }
-    Ok(member)
-}
-
-fn parse_call_expr(tokens: &mut Vec<Token>, caller: Expr) -> Result<Expr, ParserError> {
-    let mut call_expr = Expr::Call {
-        args: parse_args(tokens)?,
-        caller: Box::new(caller),
-    };
-
-    if at(tokens).token_type == TokenType::LEFTPAREN {
-        call_expr = parse_call_expr(tokens, call_expr)?;
     }
 
-    Ok(call_expr)
-}
+    fn parse_obj_expr(&mut self) -> Result<Expr, ParserError> {
+        if self.at().token_type != TokenType::LEFTBRACE {
+            return self.parse_logical_expr();
+        }
 
-pub fn parse_args(tokens: &mut Vec<Token>) -> Result<Vec<Expr>, ParserError> {
-    let _ = expect(tokens, TokenType::LEFTPAREN, "Expected open parenthesis")?;
-    let args = if at(tokens).token_type == TokenType::RIGHTPAREN {
-        vec![]
-    } else {
-        parse_arguments_list(tokens)?
-    };
-    let _ = expect(tokens, TokenType::RIGHTPAREN, "Expected close parenthesis")?;
-    Ok(args)
-}
+        let start_line = self.eat().line;
+        let mut properties = vec![];
 
-fn parse_arguments_list(tokens: &mut Vec<Token>) -> Result<Vec<Expr>, ParserError> {
-    let mut args = vec![parse_assignment_expr(tokens)?];
-
-    while at(tokens).token_type == TokenType::COMMA {
-        eat(tokens);
-        args.push(parse_assignment_expr(tokens)?);
-    }
-
-    Ok(args)
-}
-
-fn parse_member_expr(tokens: &mut Vec<Token>) -> Result<Expr, ParserError> {
-    let mut object = parse_primary_expr(tokens)?;
-
-    while at(tokens).token_type == TokenType::DOT || at(tokens).token_type == TokenType::LEFTBRACKET
-    {
-        let operator = eat(tokens);
-        let property;
-        let computed;
-
-        if operator.token_type == TokenType::DOT {
-            computed = false;
-            property = parse_primary_expr(tokens)?;
-
-            match property {
-                Expr::Identifier(_) | Expr::This => {},
-                _ => return Err(ParserError::MemberExpr("Not use . operator without identifier")),
+        while self.not_eof() && self.at().token_type != TokenType::RIGHTBRACE {
+            if self.at().token_type != TokenType::IDENTIFIER
+                && self.at().token_type != TokenType::STRING
+            {
+                return Err(ParserError::ObjectKey(
+                    format!("Found '{}'", self.at().lexeme),
+                    self.at().line,
+                ));
             }
-        } else {
-            computed = true;
-            property = parse_expr(tokens)?;
-            expect(tokens, TokenType::RIGHTBRACKET, "Missing closing bracket")?;
+            let key = self.eat();
+
+            if self.at().token_type == TokenType::COMMA {
+                self.eat();
+                properties.push(Property {
+                    key: key.lexeme,
+                    value: None,
+                });
+                continue;
+            } else if self.at().token_type == TokenType::RIGHTBRACE {
+                properties.push(Property {
+                    key: key.lexeme,
+                    value: None,
+                });
+                continue;
+            }
+            let _ = self.expect(
+                TokenType::COLON,
+                "Missing ':' for declaring value of object fields",
+            )?;
+            let value = self.parse_expr()?;
+
+            properties.push(Property {
+                key: key.lexeme,
+                value: Some(Box::new(value)),
+            });
+
+            if self.at().token_type != TokenType::RIGHTBRACE {
+                let _ = self.expect(TokenType::COMMA, "Missing ',' or '}' after object fields")?;
+            }
         }
-        object = Expr::Member {
-            object: Box::new(object),
-            property: Box::new(property),
-            computed: computed,
-        };
+
+        let end_line = self
+            .expect(TokenType::RIGHTBRACE, "Missing closing '}' for object")?
+            .line;
+
+        Ok(Expr::ObjectLiteral {
+            properties: properties,
+            start_line,
+            end_line,
+        })
     }
 
-    Ok(object)
-}
+    fn parse_logical_expr(&mut self) -> Result<Expr, ParserError> {
+        let mut left = self.parse_equality_expr()?;
 
-fn parse_primary_expr(tokens: &mut Vec<Token>) -> Result<Expr, ParserError> {
-    let tk = eat(tokens);
-
-    match tk.token_type {
-        TokenType::IDENTIFIER => Ok(Expr::Identifier(tk.lexeme)),
-        TokenType::STRING => Ok(Expr::StringLiteral(tk.lexeme)),
-        TokenType::NUMBER => Ok(Expr::NumericLiteral(tk.lexeme.parse::<f64>().unwrap())),
-        TokenType::THIS => Ok(Expr::This),
-        TokenType::TRUE => Ok(Expr::BoolLiteral(true)),
-        TokenType::FALSE => Ok(Expr::BoolLiteral(false)),
-        TokenType::NIL => Ok(Expr::Null),
-        TokenType::LEFTPAREN => {
-            let value = parse_expr(tokens)?;
-            let _ = expect(
-                tokens,
-                TokenType::RIGHTPAREN,
-                "Unexpected token. Closing paren expected.",
-            )?;
-            Ok(value)
+        while self.at().token_type == TokenType::AND || self.at().token_type == TokenType::OR {
+            let operator = self.eat();
+            let line = operator.line;
+            let right = self.parse_equality_expr()?;
+            left = Expr::ComparisonLiteral {
+                left: Box::new(left),
+                operator: operator,
+                right: Box::new(right),
+                line,
+            };
         }
-        _ => Err(ParserError::PrimaryExpr),
+        Ok(left)
+    }
+
+    fn parse_equality_expr(&mut self) -> Result<Expr, ParserError> {
+        let mut left = self.parse_comparison_expr()?;
+
+        while self.at().token_type == TokenType::EQUALEQUAL
+            || self.at().token_type == TokenType::BANGEQUAL
+        {
+            let operator = self.eat();
+            let line = operator.line;
+            let right = self.parse_comparison_expr()?;
+            left = Expr::ComparisonLiteral {
+                left: Box::new(left),
+                operator: operator,
+                right: Box::new(right),
+                line,
+            };
+        }
+        Ok(left)
+    }
+
+    fn parse_comparison_expr(&mut self) -> Result<Expr, ParserError> {
+        let mut left = self.parse_additive_expr()?;
+
+        while self.at().token_type == TokenType::GREATER
+            || self.at().token_type == TokenType::GREATEREQUAL
+            || self.at().token_type == TokenType::LESS
+            || self.at().token_type == TokenType::LESSEQUAL
+        {
+            let operator = self.eat();
+            let line = operator.line;
+            let right = self.parse_additive_expr()?;
+            left = Expr::ComparisonLiteral {
+                left: Box::new(left),
+                operator: operator,
+                right: Box::new(right),
+                line,
+            };
+        }
+        Ok(left)
+    }
+
+    fn parse_additive_expr(&mut self) -> Result<Expr, ParserError> {
+        let mut left = self.parse_multiplicative_expr()?;
+
+        while self.at().lexeme == "+" || self.at().lexeme == "-" {
+            let operator = self.eat();
+            let line = operator.line;
+            let right = self.parse_multiplicative_expr()?;
+            left = Expr::BinaryExpr {
+                left: Box::new(left),
+                operator: operator,
+                right: Box::new(right),
+                line,
+            };
+        }
+        Ok(left)
+    }
+
+    fn parse_multiplicative_expr(&mut self) -> Result<Expr, ParserError> {
+        let mut left = self.parse_unary_expr()?;
+
+        while self.at().lexeme == "*" || self.at().lexeme == "/" || self.at().lexeme == "%" {
+            let operator = self.eat();
+            let line = operator.line;
+            let right = self.parse_unary_expr()?;
+            left = Expr::BinaryExpr {
+                left: Box::new(left),
+                operator: operator,
+                right: Box::new(right),
+                line,
+            };
+        }
+        Ok(left)
+    }
+
+    fn parse_unary_expr(&mut self) -> Result<Expr, ParserError> {
+        if self.at().token_type == TokenType::BANG || self.at().token_type == TokenType::MINUS {
+            let operator = self.eat();
+            let line = operator.line;
+            let right = self.parse_expr()?;
+            Ok(Expr::Unary {
+                operator: operator,
+                right: Box::new(right),
+                line,
+            })
+        } else {
+            self.parse_call_member_expr()
+        }
+    }
+
+    fn parse_call_member_expr(&mut self) -> Result<Expr, ParserError> {
+        let member = self.parse_member_expr()?;
+
+        if self.at().token_type == TokenType::LEFTPAREN {
+            return self.parse_call_expr(member);
+        }
+        Ok(member)
+    }
+
+    fn parse_call_expr(&mut self, caller: Expr) -> Result<Expr, ParserError> {
+        match self.scope.last().unwrap() {
+            Scope::Global => {
+                return Err(ParserError::UnExpectedToken("Unexpected function call expression in global scope. Did you forget to declare it using 'fun'?".to_string(), self.at().line))
+            },
+            Scope::Class(name) => {
+                return Err(ParserError::UnExpectedToken(format!("Unexpected function call expression in class '{}'. Did you forget to declare it using 'fun'?", name), self.at().line))
+            },
+            _ => {},
+        }
+        let (args, line) = self.parse_args()?;
+        let mut call_expr = Expr::Call {
+            args,
+            caller: Box::new(caller),
+            line,
+        };
+
+        if self.at().token_type == TokenType::LEFTPAREN {
+            call_expr = self.parse_call_expr(call_expr)?;
+        }
+
+        Ok(call_expr)
+    }
+
+    pub fn parse_args(&mut self) -> Result<(Vec<Expr>, usize), ParserError> {
+        let line = self
+            .expect(TokenType::LEFTPAREN, "Missing '(' for function call")?
+            .line;
+        let args = if self.at().token_type == TokenType::RIGHTPAREN {
+            vec![]
+        } else {
+            self.parse_arguments_list()?
+        };
+        let _ = self.expect(TokenType::RIGHTPAREN, "Missing ')' for function call")?;
+        Ok((args, line))
+    }
+
+    fn parse_arguments_list(&mut self) -> Result<Vec<Expr>, ParserError> {
+        let mut args = vec![self.parse_assignment_expr()?];
+
+        while self.at().token_type == TokenType::COMMA {
+            let _ = self.eat();
+            args.push(self.parse_assignment_expr()?);
+        }
+
+        Ok(args)
+    }
+
+    fn parse_member_expr(&mut self) -> Result<Expr, ParserError> {
+        let mut object = self.parse_primary_expr()?;
+
+        while self.at().token_type == TokenType::DOT
+            || self.at().token_type == TokenType::LEFTBRACKET
+        {
+            let operator = self.eat();
+            let property;
+            let computed;
+
+            if operator.token_type == TokenType::DOT {
+                computed = false;
+                property = self.parse_primary_expr()?;
+
+                match property {
+                    Expr::Identifier(..) | Expr::This(_) => {}
+                    _ => return Err(ParserError::MemberExpr(operator.line)),
+                }
+            } else {
+                computed = true;
+                property = self.parse_expr()?;
+                let _ = self.expect(
+                    TokenType::RIGHTBRACKET,
+                    "Missing closing ']' in member expression",
+                )?;
+            }
+            object = Expr::Member {
+                object: Box::new(object),
+                property: Box::new(property),
+                computed: computed,
+                line: operator.line,
+            };
+        }
+
+        Ok(object)
+    }
+
+    fn parse_primary_expr(&mut self) -> Result<Expr, ParserError> {
+        let tk = self.eat();
+        let line = tk.line;
+
+        match tk.token_type {
+            TokenType::IDENTIFIER => Ok(Expr::Identifier(tk.lexeme, line)),
+            TokenType::STRING => Ok(Expr::StringLiteral(tk.lexeme, line)),
+            TokenType::NUMBER => Ok(Expr::NumericLiteral(
+                tk.lexeme.parse::<f64>().unwrap(),
+                line,
+            )),
+            TokenType::THIS => {
+                let valid = self.scope.iter().rev().any(|scope| match scope {
+                            Scope::Class(_) | Scope::Method(_) | Scope::Constructor(_) => true,
+                            _ => false,
+                        });
+                if !valid {
+                    Err(ParserError::ScopeError("'this' keyword is only allowed inside class methods or constructors".to_string(), line))
+                }
+                else {
+                    Ok(Expr::This(line))
+                }
+            },
+            TokenType::SUPER => {
+                let valid = self.scope.iter().rev().any(|scope| match scope {
+                            Scope::Class(_) | Scope::Method(_) | Scope::Constructor(_) => true,
+                            _ => false,
+                        });
+                if !valid {
+                    Err(ParserError::ScopeError("'super' keyword is only allowed inside class methods or constructors".to_string(), line))
+                }
+                else {
+                    Ok(Expr::Super(line))
+                }
+            },
+            TokenType::TRUE => Ok(Expr::BoolLiteral(true, line)),
+            TokenType::FALSE => Ok(Expr::BoolLiteral(false, line)),
+            TokenType::NIL => Ok(Expr::Null(line)),
+            TokenType::LEFTPAREN => {
+                let value = self.parse_expr()?;
+                let _ = self.expect(
+                    TokenType::RIGHTPAREN,
+                    "Missing closing ')' for grouping expression",
+                )?;
+                Ok(value)
+            }
+            _ => Err(ParserError::PrimaryExpr(tk.lexeme, tk.line)),
+        }
     }
 }

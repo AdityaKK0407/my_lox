@@ -103,18 +103,18 @@ impl Tokenizer {
         }
     }
 
-    pub fn scan_tokens(mut self) -> (Vec<Token>, bool) {
+    pub fn scan_tokens(mut self, code: &[String]) -> (Vec<Token>, bool) {
         while !&self.is_at_end() {
             self.start = self.current;
-            self.scan_token();
+            self.scan_token(code);
         }
 
         self.tokens
-            .push(Token::new(TokenType::EOF, String::new(), self.line));
+            .push(Token::new(TokenType::EOF, String::from("EOF"), self.line));
         (self.tokens, self.had_error)
     }
 
-    fn scan_token(&mut self) {
+    fn scan_token(&mut self, code: &[String]) {
         let c = self.advance();
 
         match c {
@@ -208,7 +208,7 @@ impl Tokenizer {
             '\n' => {
                 self.line += 1;
             }
-            '"' | '\'' => self.string(c),
+            '"' | '\'' => self.string(c, code),
 
             _ => {
                 if is_digit(c) {
@@ -216,7 +216,7 @@ impl Tokenizer {
                 } else if is_alpha(c) {
                     self.identifier();
                 } else {
-                    handle_lexer_error(self.line, &format!("Unexpected character {c}."));
+                    handle_lexer_error(self.line, &format!("Unexpected character {c}."), &code[self.line-1][..]);
                     self.had_error = true;
                 }
             }
@@ -248,7 +248,7 @@ impl Tokenizer {
         self.add_token(TokenType::NUMBER);
     }
 
-    fn string(&mut self, c: char) {
+    fn string(&mut self, c: char, code: &[String]) {
         while self.peek() != c && !self.is_at_end() {
             if self.peek() == '\n' {
                 self.line += 1;
@@ -256,7 +256,7 @@ impl Tokenizer {
             self.advance();
         }
         if self.is_at_end() {
-            handle_lexer_error(self.line, "Unterminated string.");
+            handle_lexer_error(self.line, "Unterminated string.", &code[self.line-1][..]);
             self.had_error = true;
             return;
         }

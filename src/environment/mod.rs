@@ -8,6 +8,16 @@ use crate::handle_errors::RuntimeError;
 use crate::values::RuntimeVal;
 use crate::values::make_native_function;
 
+#[derive(Debug, PartialEq)]
+pub enum Scope {
+    Global,
+    Class(String),
+    Method(String),
+    Constructor(String),
+    Function(String),
+    Loop,
+}
+
 #[derive(Debug)]
 pub struct Environment {
     parent: Option<Rc<RefCell<Environment>>>,

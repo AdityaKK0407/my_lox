@@ -64,8 +64,9 @@ pub fn evaluate_program(program: &[Stmt], env: &Rc<RefCell<Environment>>, is_rep
     } else {
         let main_stmt = Stmt::Expression(Expr::Call {
             args: vec![],
-            caller: Box::new(Expr::Identifier(String::from("main"))),
-        });
+            caller: Box::new(Expr::Identifier(String::from("main"), 0)),
+            line: 0,
+        }); // Calling main function happens outside the code, thus denoted by line 0. NOT A MISTAKE
         evaluate(&main_stmt, env)?;
     }
     Ok(())

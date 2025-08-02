@@ -42,41 +42,50 @@ pub struct ClassDeclaration {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
-    NumericLiteral(f64),
-    Null,
-    BoolLiteral(bool),
-    StringLiteral(String),
-    Identifier(String),
-    This,
+    NumericLiteral(f64, usize),
+    Null(usize),
+    BoolLiteral(bool, usize),
+    StringLiteral(String, usize),
+    Identifier(String, usize),
+    This(usize),
+    Super(usize),
     Member {
         object: Box<Expr>,
         property: Box<Expr>,
         computed: bool,
+        line: usize,
     },
     Call {
         args: Vec<Expr>,
         caller: Box<Expr>,
+        line: usize,
     },
     Unary {
         operator: Token,
         right: Box<Expr>,
+        line: usize,
     },
     BinaryExpr {
         left: Box<Expr>,
         operator: Token,
         right: Box<Expr>,
+        line: usize,
     },
     ComparisonLiteral {
         left: Box<Expr>,
         operator: Token,
         right: Box<Expr>,
+        line: usize,
     },
     ObjectLiteral {
         properties: Vec<Property>,
+        start_line: usize,
+        end_line: usize,
     },
     AssignmentExpr {
         assignee: Box<Expr>,
         value: Box<Expr>,
+        line: usize,
     },
 }
 

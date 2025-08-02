@@ -14,33 +14,37 @@ pub fn evaluate_expr(
     env: &Rc<RefCell<Environment>>,
 ) -> Result<RuntimeVal, RuntimeError> {
     match expr {
-        Expr::NumericLiteral(num) => Ok(make_number(*num)),
-        Expr::Null => Ok(make_nil()),
-        Expr::BoolLiteral(bit) => Ok(make_bool(*bit)),
-        Expr::StringLiteral(str) => Ok(make_string(&str[..])),
-        Expr::Identifier(symbol) => evaluate_identifier(&symbol[..], env),
-        Expr::This => evaluate_identifier("this", env),
+        Expr::NumericLiteral(num, line) => Ok(make_number(*num)),
+        Expr::Null(line) => Ok(make_nil()),
+        Expr::BoolLiteral(bit, line) => Ok(make_bool(*bit)),
+        Expr::StringLiteral(str, line) => Ok(make_string(&str[..])),
+        Expr::Identifier(symbol, line) => evaluate_identifier(&symbol[..], env),
+        Expr::This(line) => evaluate_identifier("this", env),
+        Expr::Super(line) => evaluate_identifier("super", env),
         Expr::Member {
             object,
             property,
             computed,
+            line,
         } => evaluate_member_expr(object, property, *computed, env),
-        Expr::Call { args, caller } => evaluate_function_call(args, caller, env),
-        Expr::Unary { operator, right } => {
+        Expr::Call { args, caller, line } => evaluate_function_call(args, caller, env),
+        Expr::Unary { operator, right, line } => {
             evaluate_unary_expr(operator, right, env)
         }
         Expr::BinaryExpr {
             left,
             operator,
             right,
+            line,
         } => evaluate_binary_expr(left, operator, right, env),
         Expr::ComparisonLiteral {
             left,
             operator,
             right,
+            line,
         } => evaluate_compare_expr(left, operator, right, env),
-        Expr::ObjectLiteral { properties } => evaluate_object_expr(properties, env),
-        Expr::AssignmentExpr { assignee, value } => {
+        Expr::ObjectLiteral { properties, start_line, end_line } => evaluate_object_expr(properties, env),
+        Expr::AssignmentExpr { assignee, value, line } => {
             evaluate_assignment(assignee, value, env)
         }
     }
@@ -78,7 +82,7 @@ fn evaluate_assignment(
     env: &Rc<RefCell<Environment>>,
 ) -> Result<RuntimeVal, RuntimeError> {
     match assignee {
-        Expr::Identifier(ident) => {
+        Expr::Identifier(ident, line) => {
             let value = evaluate_expr(value, env)?;
             return assign_var(env, &ident[..], value);
         }
@@ -86,6 +90,7 @@ fn evaluate_assignment(
             object,
             property,
             computed,
+            line,
         } => {
             let _ = equate_member_expr(object, property, *computed, value, env);
             return evaluate_expr(value, env);
@@ -400,7 +405,7 @@ fn evaluate_member_expr(
         }
     } else {
         let lexeme;
-        if let Expr::Identifier(name) = property {
+        if let Expr::Identifier(name, line) = property {
             lexeme = name;
         } else {
             return Err(RuntimeError::MisMatchTypes);
@@ -485,7 +490,7 @@ fn equate_member_expr(
         }
     } else {
         let lexeme;
-        if let Expr::Identifier(name) = property {
+        if let Expr::Identifier(name, line) = property {
             lexeme = name;
         } else {
             return Err(RuntimeError::MisMatchTypes);
