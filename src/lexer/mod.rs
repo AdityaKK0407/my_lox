@@ -103,7 +103,7 @@ impl Tokenizer {
         }
     }
 
-    pub fn scan_tokens(mut self, code: &[String]) -> (Vec<Token>, bool) {
+    pub fn scan_tokens(mut self, code: &[&str]) -> (Vec<Token>, bool) {
         while !&self.is_at_end() {
             self.start = self.current;
             self.scan_token(code);
@@ -114,7 +114,7 @@ impl Tokenizer {
         (self.tokens, self.had_error)
     }
 
-    fn scan_token(&mut self, code: &[String]) {
+    fn scan_token(&mut self, code: &[&str]) {
         let c = self.advance();
 
         match c {
@@ -248,7 +248,7 @@ impl Tokenizer {
         self.add_token(TokenType::NUMBER);
     }
 
-    fn string(&mut self, c: char, code: &[String]) {
+    fn string(&mut self, c: char, code: &[&str]) {
         while self.peek() != c && !self.is_at_end() {
             if self.peek() == '\n' {
                 self.line += 1;

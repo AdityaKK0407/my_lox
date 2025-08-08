@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use crate::global_scope::*;
-use crate::handle_errors::RuntimeError;
+use crate::handle_errors::EnvironmentError;
 use crate::values::RuntimeVal;
 use crate::values::make_native_function;
 
@@ -79,10 +79,10 @@ pub fn declare_var(
     var_name: &str,
     value: RuntimeVal,
     constant: bool,
-) -> Result<RuntimeVal, RuntimeError> {
+) -> Result<RuntimeVal, EnvironmentError> {
     let mut env = env.borrow_mut();
     if env.variables.contains_key(var_name) {
-        return Err(RuntimeError::DeclareVar);
+        return Err(EnvironmentError::ReDeclareVar);
     }
     env.variables.insert(var_name.to_string(), value.clone());
     if constant {
@@ -95,35 +95,32 @@ pub fn assign_var(
     env: &Rc<RefCell<Environment>>,
     var_name: &str,
     value: RuntimeVal,
-) -> Result<RuntimeVal, RuntimeError> {
+) -> Result<RuntimeVal, EnvironmentError> {
     let final_env = resolve(env, var_name)?;
     let mut env = final_env.borrow_mut();
 
     if env.constants.contains(var_name) {
-        return Err(RuntimeError::ConstReassign);
+        return Err(EnvironmentError::ConstReassign);
     }
     env.variables.insert(var_name.to_string(), value.clone());
     Ok(value)
 }
 
-pub fn lookup_var(env: &Rc<RefCell<Environment>>, var_name: &str) -> Result<RuntimeVal, RuntimeError> {
+pub fn lookup_var(env: &Rc<RefCell<Environment>>, var_name: &str) -> Result<RuntimeVal, EnvironmentError> {
     let final_env = resolve(env, var_name)?;
     let env = final_env.borrow();
-    match env.variables.get(var_name) {
-        Some(v) => Ok(v.clone()),
-        None => Err(RuntimeError::UnidentifiedVar),
-    }
+    Ok(env.variables.get(var_name).unwrap().clone())
 }
 
 pub fn resolve(
     env: &Rc<RefCell<Environment>>,
     var_name: &str,
-) -> Result<Rc<RefCell<Environment>>, RuntimeError> {
+) -> Result<Rc<RefCell<Environment>>, EnvironmentError> {
     if env.borrow().variables.contains_key(var_name) {
         return Ok(Rc::clone(env));
     }
     match &env.borrow().parent {
         Some(parent) => resolve(parent, var_name),
-        None => Err(RuntimeError::UnidentifiedVar),
+        None => Err(EnvironmentError::VarNotDeclared),
     }
 }

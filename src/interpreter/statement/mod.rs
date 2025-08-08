@@ -4,14 +4,32 @@ use std::rc::Rc;
 
 use crate::ast::*;
 use crate::environment::*;
+use crate::handle_errors::*;
 use crate::interpreter::expression::*;
 use crate::interpreter::interpreter::*;
 use crate::values::*;
-use crate::handle_errors::RuntimeError;
 
-pub fn var_declaration(declaration: &VarDeclaration, env: &Rc<RefCell<Environment>>) -> Result<EvalResult, RuntimeError> {
+pub fn var_declaration(
+    declaration: &VarDeclaration,
+    env: &Rc<RefCell<Environment>>,
+) -> Result<EvalResult, RuntimeError> {
     let value = evaluate_expr(&declaration.value, env)?;
-    declare_var(env, &declaration.identifier[..], value, declaration.constant)?;
+    if let Err(err) = declare_var(
+        env,
+        &declaration.identifier[..],
+        value.clone(),
+        declaration.constant,
+    ) {
+        if err == EnvironmentError::ReDeclareVar {
+            return Err(RuntimeError::EnvironmentError(
+                format!(
+                    "{} is already declared. Cannot redeclare variable with same name",
+                    declaration.identifier
+                ),
+                declaration.line,
+            ));
+        }
+    }
     Ok(make_none())
 }
 
@@ -54,28 +72,34 @@ fn print_obj(obj: HashMap<String, RuntimeVal>) {
 }
 
 pub fn if_else_stmt(
-    collection: &[(Expr, Vec<Stmt>)],
+    collection: &[(Expr, Vec<Stmt>, usize)],
     env: &Rc<RefCell<Environment>>,
 ) -> Result<EvalResult, RuntimeError> {
     let local_env = Environment::new(Some(Rc::clone(env)));
-    for (expr, statements) in collection {
+    let mut is_if_stmt = true;
+    for (expr, statements, line) in collection {
         let condition = evaluate_expr(expr, &local_env)?;
         if let RuntimeVal::Bool(bit) = condition {
+            is_if_stmt = false;
             if !bit {
                 continue;
             } else {
                 for statement in statements {
                     match evaluate(&statement, &local_env)? {
                         EvalResult::Return(val) => return Ok(EvalResult::Return(val)),
-                EvalResult::Break => return Ok(EvalResult::Break),
-                EvalResult::Continue => return Ok(EvalResult::Continue),
+                        EvalResult::Break => return Ok(EvalResult::Break),
+                        EvalResult::Continue => return Ok(EvalResult::Continue),
                         _ => continue,
                     }
                 }
                 break;
             }
         }
-        return Err(RuntimeError::MisMatchTypes);
+        let str: &str = if is_if_stmt { "if" } else { "else-if" };
+        return Err(RuntimeError::TypeMismatch(
+            format!("Expressions of {} statements must be of type bool", str),
+            *line,
+        ));
     }
     Ok(make_none())
 }
@@ -86,63 +110,77 @@ pub fn for_stmt(
     expr2: &Expr,
     statements: &[Stmt],
     env: &Rc<RefCell<Environment>>,
+    line: usize,
 ) -> Result<EvalResult, RuntimeError> {
     let local_env = Environment::new(Some(Rc::clone(env)));
-    evaluate(&stmt, &local_env)?;
+    let _ = evaluate(&stmt, &local_env)?;
 
-    for_loop(expr1, expr2, statements, &local_env)
+    loop {
+        if let RuntimeVal::Bool(bit) = evaluate_expr(expr1, &local_env)? {
+            if !bit {
+                break;
+            }
+            for statement in statements {
+                match evaluate(&statement, &local_env)? {
+                    EvalResult::Return(val) => return Ok(EvalResult::Return(val)),
+                    EvalResult::Break => return Ok(make_none()),
+                    EvalResult::Continue => break,
+                    _ => continue,
+                }
+            }
+            let _ = evaluate(&Stmt::Expression(expr2.clone()), &local_env)?;
+        } else {
+            return Err(RuntimeError::TypeMismatch(
+                "Only bool type allowed in for loop condition statement".into(),
+                line,
+            ));
+        }
+    }
+
+    Ok(make_none())
 }
 
-fn for_loop(
-    expr1: &Expr,
-    expr2: &Expr,
+pub fn while_stmt(
+    expr: &Expr,
     statements: &[Stmt],
-    local_env: &Rc<RefCell<Environment>>,
+    env: &Rc<RefCell<Environment>>,
+    line: usize,
 ) -> Result<EvalResult, RuntimeError> {
-    while let RuntimeVal::Bool(bit) = evaluate_expr(expr1, local_env)? {
-        if !bit {
-            break;
-        }
-        for statement in statements {
-            match evaluate(&statement, &local_env)? {
-                EvalResult::Return(val) => return Ok(EvalResult::Return(val)),
-                EvalResult::Break => return Ok(make_none()),
-                EvalResult::Continue => break,
-                _ => continue,
-            }
-        }
-        evaluate(&Stmt::Expression(expr2.clone()), local_env)?;
-    }
-
-    Ok(make_none())
-}
-
-pub fn while_stmt(expr: &Expr, statements: &[Stmt], env: &Rc<RefCell<Environment>>) -> Result<EvalResult, RuntimeError> {
     let local_env = Environment::new(Some(Rc::clone(env)));
-    while let RuntimeVal::Bool(bit) = evaluate_expr(expr, &local_env)? {
-        if !bit {
-            break;
-        }
-        for statement in statements {
-            match evaluate(&statement, &local_env)? {
-                EvalResult::Return(val) => return Ok(EvalResult::Return(val)),
-                EvalResult::Break => return Ok(make_none()),
-                EvalResult::Continue => break,
-                _ => continue,
+    loop {
+        if let RuntimeVal::Bool(bit) = evaluate_expr(expr, &local_env)? {
+            if !bit {
+                break;
             }
+            for statement in statements {
+                match evaluate(&statement, &local_env)? {
+                    EvalResult::Return(val) => return Ok(EvalResult::Return(val)),
+                    EvalResult::Break => return Ok(make_none()),
+                    EvalResult::Continue => break,
+                    _ => continue,
+                }
+            }
+        } else {
+            return Err(RuntimeError::TypeMismatch(
+                "Only bool type allowed in for loop condition statement".into(),
+                line,
+            ));
         }
     }
 
     Ok(make_none())
 }
 
-pub fn block_stmt(stmts: Vec<Stmt>, env: &Rc<RefCell<Environment>>) -> Result<EvalResult, RuntimeError> {
+pub fn block_stmt(
+    stmts: Vec<Stmt>,
+    env: &Rc<RefCell<Environment>>,
+) -> Result<EvalResult, RuntimeError> {
     let local_env = Environment::new(Some(Rc::clone(env)));
     for stmt in stmts {
         match evaluate(&stmt, &local_env)? {
             EvalResult::Return(val) => return Ok(EvalResult::Return(val)),
-                EvalResult::Break => return Ok(EvalResult::Break),
-                EvalResult::Continue => return Ok(EvalResult::Continue),
+            EvalResult::Break => return Ok(EvalResult::Break),
+            EvalResult::Continue => return Ok(EvalResult::Continue),
             _ => continue,
         }
     }

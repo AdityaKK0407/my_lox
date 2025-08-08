@@ -6,13 +6,15 @@ use crate::lexer::*;
 pub struct Parser {
     tokens: Vec<Token>,
     pub scope: Vec<Scope>,
+    pub is_repl: bool,
 }
 
 impl Parser {
-    pub fn new(tokens: Vec<Token>) -> Self {
+    pub fn new(tokens: Vec<Token>, is_repl: bool) -> Self {
         Parser {
             tokens,
             scope: vec![Scope::Global],
+            is_repl,
         }
     }
 
@@ -64,10 +66,13 @@ impl Parser {
             | TokenType::MINUS
             | TokenType::STRING
             | TokenType::THIS
+            | TokenType::SUPER
             | TokenType::LEFTPAREN => {
                 let stmt = Stmt::Expression(self.parse_expr()?);
-                let _ =
-                    self.expect(TokenType::SEMICOLON, "Missing ';' at the end of expression")?;
+                if !self.is_repl {
+                    let _ =
+                        self.expect(TokenType::SEMICOLON, "Missing ';' at the end of expression")?;
+                }
                 Ok(stmt)
             }
             TokenType::LEFTBRACE => self.parse_block_statement(),

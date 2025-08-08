@@ -1,17 +1,26 @@
 use crate::ast::*;
+use crate::environment::Scope;
 use crate::handle_errors::*;
 use crate::lexer::*;
 use crate::parser::parser::*;
-use crate::environment::Scope;
 
 impl Parser {
     pub fn parse_expr(&mut self) -> Result<Expr, ParserError> {
         let result = self.parse_assignment_expr()?;
-        match self.scope.last().unwrap() {
-            Scope::Global => Err(ParserError::ScopeError("Invalid expression in global scope. Only declarations are allowed.".to_string(), self.at().line)),
-            Scope::Class(name) => Err(ParserError::ScopeError(format!("Invalid expression in class '{}'.", name), self.at().line)),
-            _ => Ok(result),
+        if self.scope.last().unwrap() == &Scope::Global && !self.is_repl {
+            return Err(ParserError::ScopeError(
+                "Invalid expression in global scope. Only declarations are allowed.".to_string(),
+                self.at().line,
+            ));
         }
+
+        if let Scope::Class(name) = self.scope.last().unwrap() {
+            return Err(ParserError::ScopeError(
+                format!("Invalid expression in class '{}'.", name),
+                self.at().line,
+            ));
+        }
+        Ok(result)
     }
 
     fn parse_assignment_expr(&mut self) -> Result<Expr, ParserError> {
@@ -58,7 +67,7 @@ impl Parser {
             return self.parse_logical_expr();
         }
 
-        let start_line = self.eat().line;
+        let _ = self.eat();
         let mut properties = vec![];
 
         while self.not_eof() && self.at().token_type != TokenType::RIGHTBRACE {
@@ -73,16 +82,18 @@ impl Parser {
             let key = self.eat();
 
             if self.at().token_type == TokenType::COMMA {
-                self.eat();
+                let line = self.eat().line;
                 properties.push(Property {
                     key: key.lexeme,
                     value: None,
+                    line,
                 });
                 continue;
             } else if self.at().token_type == TokenType::RIGHTBRACE {
                 properties.push(Property {
                     key: key.lexeme,
                     value: None,
+                    line: self.at().line,
                 });
                 continue;
             }
@@ -95,6 +106,7 @@ impl Parser {
             properties.push(Property {
                 key: key.lexeme,
                 value: Some(Box::new(value)),
+                line: self.at().line,
             });
 
             if self.at().token_type != TokenType::RIGHTBRACE {
@@ -102,14 +114,10 @@ impl Parser {
             }
         }
 
-        let end_line = self
-            .expect(TokenType::RIGHTBRACE, "Missing closing '}' for object")?
-            .line;
+        let _ = self.expect(TokenType::RIGHTBRACE, "Missing closing '}' for object")?;
 
         Ok(Expr::ObjectLiteral {
             properties: properties,
-            start_line,
-            end_line,
         })
     }
 
@@ -229,14 +237,18 @@ impl Parser {
     }
 
     fn parse_call_expr(&mut self, caller: Expr) -> Result<Expr, ParserError> {
-        match self.scope.last().unwrap() {
-            Scope::Global => {
-                return Err(ParserError::UnExpectedToken("Unexpected function call expression in global scope. Did you forget to declare it using 'fun'?".to_string(), self.at().line))
-            },
-            Scope::Class(name) => {
-                return Err(ParserError::UnExpectedToken(format!("Unexpected function call expression in class '{}'. Did you forget to declare it using 'fun'?", name), self.at().line))
-            },
-            _ => {},
+        if self.scope.last().unwrap() == &Scope::Global && !self.is_repl {
+            return Err(ParserError::UnExpectedToken("Unexpected function call expression in global scope. Did you forget to declare it using 'fun'?".to_string(), self.at().line));
+        }
+
+        if let Scope::Class(name) = self.scope.last().unwrap() {
+            return Err(ParserError::UnExpectedToken(
+                format!(
+                    "Unexpected function call expression in class '{}'. Did you forget to declare it using 'fun'?",
+                    name
+                ),
+                self.at().line,
+            ));
         }
         let (args, line) = self.parse_args()?;
         let mut call_expr = Expr::Call {
@@ -252,7 +264,7 @@ impl Parser {
         Ok(call_expr)
     }
 
-    pub fn parse_args(&mut self) -> Result<(Vec<Expr>, usize), ParserError> {
+    fn parse_args(&mut self) -> Result<(Vec<Expr>, usize), ParserError> {
         let line = self
             .expect(TokenType::LEFTPAREN, "Missing '(' for function call")?
             .line;
@@ -291,7 +303,7 @@ impl Parser {
                 property = self.parse_primary_expr()?;
 
                 match property {
-                    Expr::Identifier(..) | Expr::This(_) => {}
+                    Expr::Identifier(..) | Expr::This(_) | Expr::Super(_) => {}
                     _ => return Err(ParserError::MemberExpr(operator.line)),
                 }
             } else {
@@ -326,28 +338,34 @@ impl Parser {
             )),
             TokenType::THIS => {
                 let valid = self.scope.iter().rev().any(|scope| match scope {
-                            Scope::Class(_) | Scope::Method(_) | Scope::Constructor(_) => true,
-                            _ => false,
-                        });
+                    Scope::Class(_) | Scope::Method(_) | Scope::Constructor(_) => true,
+                    _ => false,
+                });
                 if !valid {
-                    Err(ParserError::ScopeError("'this' keyword is only allowed inside class methods or constructors".to_string(), line))
-                }
-                else {
+                    Err(ParserError::ScopeError(
+                        "'this' keyword is only allowed inside class methods or constructors"
+                            .to_string(),
+                        line,
+                    ))
+                } else {
                     Ok(Expr::This(line))
                 }
-            },
+            }
             TokenType::SUPER => {
                 let valid = self.scope.iter().rev().any(|scope| match scope {
-                            Scope::Class(_) | Scope::Method(_) | Scope::Constructor(_) => true,
-                            _ => false,
-                        });
+                    Scope::Class(_) | Scope::Method(_) | Scope::Constructor(_) => true,
+                    _ => false,
+                });
                 if !valid {
-                    Err(ParserError::ScopeError("'super' keyword is only allowed inside class methods or constructors".to_string(), line))
-                }
-                else {
+                    Err(ParserError::ScopeError(
+                        "'super' keyword is only allowed inside class methods or constructors"
+                            .to_string(),
+                        line,
+                    ))
+                } else {
                     Ok(Expr::Super(line))
                 }
-            },
+            }
             TokenType::TRUE => Ok(Expr::BoolLiteral(true, line)),
             TokenType::FALSE => Ok(Expr::BoolLiteral(false, line)),
             TokenType::NIL => Ok(Expr::Null(line)),

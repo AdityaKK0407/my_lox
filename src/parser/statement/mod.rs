@@ -8,6 +8,7 @@ use crate::parser::parser::*;
 
 impl Parser {
     pub fn parse_var_declaration(&mut self) -> Result<Stmt, ParserError> {
+        let line = self.at().line;
         let is_constant = self.eat().token_type == TokenType::CONST;
         let identifier = self
             .expect(
@@ -17,15 +18,16 @@ impl Parser {
             .lexeme;
 
         if self.at().token_type == TokenType::SEMICOLON {
-            let line = self.eat().line;
+            let _ = self.eat().line;
             if is_constant {
-                return Err(ParserError::ConstValueNull(line));
+                return Err(ParserError::ConstValueNull(self.at().line));
             }
 
             return Ok(Stmt::VarDeclaration(VarDeclaration {
                 constant: false,
                 identifier: identifier,
-                value: Box::new(Expr::Null(line)),
+                value: Box::new(Expr::Null(self.at().line)),
+                line,
             }));
         }
         let _ = self.expect(
@@ -36,6 +38,7 @@ impl Parser {
             constant: is_constant,
             identifier: identifier,
             value: Box::new(self.parse_expr()?),
+            line,
         });
 
         let _ = self.expect(
@@ -46,7 +49,7 @@ impl Parser {
     }
 
     pub fn parse_print_statement(&mut self, new_line: bool) -> Result<Stmt, ParserError> {
-        if let Scope::Global = self.scope.last().unwrap() {
+        if self.scope.last().unwrap() == &Scope::Global && !self.is_repl {
             return Err(ParserError::ScopeError(
                 "Print statement not allowed in global scope".to_string(),
                 self.at().line,
@@ -61,16 +64,16 @@ impl Parser {
                 self.at().line,
             ));
         }
-        self.eat();
+        let _ = self.eat();
         if self.at().token_type == TokenType::SEMICOLON {
-            self.eat();
+            let _ = self.eat();
             return Ok(Stmt::Print(None, new_line));
         }
         let expr = self.parse_expr()?;
         let mut expressions = vec![expr];
 
         while self.at().token_type == TokenType::COMMA {
-            self.eat();
+            let _ = self.eat();
             expressions.push(self.parse_expr()?);
         }
 
@@ -82,7 +85,8 @@ impl Parser {
     }
 
     pub fn parse_if_else_statement(&mut self) -> Result<Stmt, ParserError> {
-        if let Scope::Global = self.scope.last().unwrap() {
+        let line = self.at().line;
+        if self.scope.last().unwrap() == &Scope::Global && !self.is_repl {
             return Err(ParserError::ScopeError(
                 "if-else statements not allowed in global scope".to_string(),
                 self.at().line,
@@ -97,7 +101,7 @@ impl Parser {
                 self.at().line,
             ));
         }
-        self.eat();
+        let _ = self.eat();
         let expr = self.parse_expr()?;
         let _ = self.expect(
             TokenType::LEFTBRACE,
@@ -111,7 +115,7 @@ impl Parser {
             TokenType::RIGHTBRACE,
             "Missing '}' to end the body of the if block",
         )?;
-        let mut if_collection = vec![(expr, statements)];
+        let mut if_collection = vec![(expr, statements, line)];
 
         let mut is_else_block;
         let messages1 = [
@@ -147,13 +151,13 @@ impl Parser {
                 };
             }
             let _ = self.expect(TokenType::RIGHTBRACE, messages2[is_else_block])?;
-            if_collection.push((expr, statements));
+            if_collection.push((expr, statements, line));
         }
         Ok(Stmt::IfElse(if_collection))
     }
 
     pub fn parse_for_statement(&mut self) -> Result<Stmt, ParserError> {
-        if let Scope::Global = self.scope.last().unwrap() {
+        if self.scope.last().unwrap() == &Scope::Global && !self.is_repl {
             return Err(ParserError::ScopeError(
                 "for loop not allowed in global scope".to_string(),
                 self.at().line,
@@ -169,7 +173,7 @@ impl Parser {
             ));
         }
         self.scope.push(Scope::Loop);
-        let _ = self.eat();
+        let line = self.eat().line;
 
         if self.at().token_type == TokenType::SEMICOLON {
             return Err(ParserError::ForLoopDeclaration(
@@ -212,16 +216,17 @@ impl Parser {
         )?;
 
         self.scope.pop();
-        Ok(Stmt::For(((Box::new(var_stmt), expr1, expr2), stmt)))
+        Ok(Stmt::For((Box::new(var_stmt), expr1, expr2), stmt, line))
     }
 
     pub fn parse_while_statement(&mut self) -> Result<Stmt, ParserError> {
-        if let Scope::Global = self.scope.last().unwrap() {
+        if self.scope.last().unwrap() == &Scope::Global && !self.is_repl {
             return Err(ParserError::ScopeError(
                 "while loop not allowed in global scope".to_string(),
                 self.at().line,
             ));
         }
+
         if let Scope::Class(class_name) = self.scope.last().unwrap() {
             return Err(ParserError::ScopeError(
                 format!(
@@ -232,7 +237,7 @@ impl Parser {
             ));
         }
         self.scope.push(Scope::Loop);
-        let _ = self.eat();
+        let line = self.eat().line;
         let expr = self.parse_expr()?;
         let _ = self.expect(
             TokenType::LEFTBRACE,
@@ -252,10 +257,26 @@ impl Parser {
             "Missing '}' to start the body of the while loop",
         )?;
         self.scope.pop();
-        Ok(Stmt::While((expr, stmt)))
+        Ok(Stmt::While(expr, stmt, line))
     }
 
     pub fn parse_block_statement(&mut self) -> Result<Stmt, ParserError> {
+        if self.scope.last().unwrap() == &Scope::Global && !self.is_repl {
+            return Err(ParserError::ScopeError(
+                "block statements not allowed in global scope".to_string(),
+                self.at().line,
+            ));
+        }
+
+        if let Scope::Class(class_name) = self.scope.last().unwrap() {
+            return Err(ParserError::ScopeError(
+                format!(
+                    "Invalid block statement inside class '{}'. Only method and field declarations are allowed.",
+                    class_name
+                ),
+                self.at().line,
+            ));
+        }
         let _ = self.eat();
         let mut stmts = vec![];
         while self.at().token_type != TokenType::RIGHTBRACE {
@@ -269,7 +290,7 @@ impl Parser {
     }
 
     pub fn parse_function_statement(&mut self) -> Result<Stmt, ParserError> {
-        let _ = self.eat();
+        let line = self.eat().line;
 
         let name = self
             .expect(
@@ -338,6 +359,7 @@ impl Parser {
             name: name,
             parameters: parameters,
             body: body,
+            line,
         }))
     }
 
@@ -348,7 +370,7 @@ impl Parser {
                 self.at().line,
             ));
         }
-        let _ = self.eat();
+        let line = self.eat().line;
 
         let name = self
             .expect(
@@ -413,6 +435,7 @@ impl Parser {
             static_fields: var,
             methods: methods,
             superclass: superclass,
+            line,
         }))
     }
 }

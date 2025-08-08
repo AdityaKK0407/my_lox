@@ -25,14 +25,14 @@ mod parser {
 mod global_scope;
 mod values;
 
-pub fn run_file(file_path: &str) -> Result<(), Box<dyn Error>> {
+pub fn run_file(file_path: &str, command_line_args: &[&str]) -> Result<(), Box<dyn Error>> {
     let contents = fs::read_to_string(file_path)?;
     let mut env = Environment::new(None);
-    run(&contents[..], &mut env, false);
+    run(&contents[..], &mut env, command_line_args, false);
     Ok(())
 }
 
-pub fn run_prompt() -> Result<(), String> {
+pub fn run_prompt() {
     let mut statement = String::new();
     let mut env = Environment::new(None);
     loop {
@@ -45,14 +45,17 @@ pub fn run_prompt() -> Result<(), String> {
         if statement.trim() == "exit" {
             break;
         }
-        run(&statement[..], &mut env, true);
+        run(&statement[..], &mut env, &vec![], true);
         statement.clear();
     }
-
-    Ok(())
 }
 
-fn run(source_code: &str, env: &mut Rc<RefCell<Environment>>, is_repl: bool) {
+fn run(
+    source_code: &str,
+    env: &mut Rc<RefCell<Environment>>,
+    command_line_args: &[&str],
+    is_repl: bool,
+) {
     let serialized_code = serialize_source_code(source_code);
 
     let tokenizer = lexer::Tokenizer::new(source_code);
@@ -62,38 +65,32 @@ fn run(source_code: &str, env: &mut Rc<RefCell<Environment>>, is_repl: bool) {
         return;
     }
 
-    let mut program = parser::parser::Parser::new(tokens);
-    let parsed_program;
-    match program.produce_ast() {
-        Ok(s) => parsed_program = s,
+    let mut program = parser::parser::Parser::new(tokens, is_repl);
+    let parsed_program = match program.produce_ast() {
+        Ok(s) => s,
         Err(e) => {
             handle_parser_error(e, &serialized_code);
             return;
         }
-    }
-    if let Err(e) = interpreter::interpreter::evaluate_program(&parsed_program, env, is_repl) {
-        handle_runtime_error(e);
+    };
+    if let Err(e) =
+        interpreter::interpreter::evaluate_program(&parsed_program, env, command_line_args, is_repl)
+    {
+        handle_runtime_error(e, &serialized_code);
     }
 }
 
-fn serialize_source_code(code: &str) -> Vec<String> {
+fn serialize_source_code(code: &str) -> Vec<&str> {
     let mut result = vec![];
 
-    let mut temp = String::new();
-    for c in code.chars() {
-        if c == '\n' {
-            if temp.is_empty() {
-                temp = String::from("...");
-            }
-            result.push(temp);
-            temp = String::new();
-        } else if c != '\r' {
-            temp.push(c);
+    for line in code.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            result.push("...");
+        } else {
+            result.push(trimmed);
         }
     }
-    if temp.is_empty() {
-        temp = String::from("...");
-    }
-    result.push(temp);
+
     result
 }

@@ -27,7 +27,7 @@ pub enum RuntimeVal {
         body: Vec<Stmt>,
         closure: Rc<RefCell<Environment>>,
     },
-    NativeFunction(fn(Vec<RuntimeVal>) -> Result<RuntimeVal, RuntimeError>),
+    NativeFunction(fn(&[RuntimeVal], usize) -> Result<RuntimeVal, RuntimeError>),
     Method {
         func: Box<RuntimeVal>,
         instance: Box<RuntimeVal>,
@@ -78,7 +78,7 @@ pub fn make_function(
     }
 }
 
-pub fn make_native_function(func: fn(Vec<RuntimeVal>) -> Result<RuntimeVal, RuntimeError>) -> RuntimeVal {
+pub fn make_native_function(func: fn(&[RuntimeVal], usize) -> Result<RuntimeVal, RuntimeError>) -> RuntimeVal {
     RuntimeVal::NativeFunction(func)
 }
 

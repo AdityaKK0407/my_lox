@@ -7,14 +7,14 @@ pub enum Stmt {
     Expression(Expr),
     VarDeclaration(VarDeclaration),
     Print(Option<Vec<Expr>>, bool),
-    IfElse(Vec<(Expr, Vec<Stmt>)>),
-    For(((Box<Stmt>, Expr, Expr), Vec<Stmt>)),
-    While((Expr, Vec<Stmt>)),
-    Function(FunctionDeclaration),
+    IfElse(Vec<(Expr, Vec<Stmt>, usize)>),
+    For((Box<Stmt>, Expr, Expr), Vec<Stmt>, usize),
+    While(Expr, Vec<Stmt>, usize),
     Block(Vec<Stmt>),
     Return(Expr),
     Break,
     Continue,
+    Function(FunctionDeclaration),
     Class(ClassDeclaration),
 }
 
@@ -23,6 +23,7 @@ pub struct VarDeclaration {
     pub constant: bool,
     pub identifier: String,
     pub value: Box<Expr>,
+    pub line: usize,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -30,6 +31,7 @@ pub struct FunctionDeclaration {
     pub name: String,
     pub parameters: Vec<String>,
     pub body: Vec<Stmt>,
+    pub line: usize,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -38,6 +40,7 @@ pub struct ClassDeclaration {
     pub static_fields: Vec<VarDeclaration>,
     pub methods: HashMap<String, FunctionDeclaration>,
     pub superclass: Option<String>,
+    pub line: usize,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -79,8 +82,6 @@ pub enum Expr {
     },
     ObjectLiteral {
         properties: Vec<Property>,
-        start_line: usize,
-        end_line: usize,
     },
     AssignmentExpr {
         assignee: Box<Expr>,
@@ -93,4 +94,5 @@ pub enum Expr {
 pub struct Property {
     pub key: String,
     pub value: Option<Box<Expr>>,
+    pub line: usize,
 }
