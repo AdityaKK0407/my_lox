@@ -38,8 +38,8 @@ pub fn print_stmt(
     env: &Rc<RefCell<Environment>>,
     new_line: bool,
 ) -> Result<EvalResult, RuntimeError> {
-    if let Some(exprs) = value {
-        for expr in exprs {
+    if let Some(expr) = value {
+        for expr in expr {
             let runtime_val = evaluate_expr(expr, env)?;
             print_runtime_val(runtime_val);
         }

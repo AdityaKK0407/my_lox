@@ -294,7 +294,7 @@ impl Tokenizer {
     }
 
     fn is_at_end(&self) -> bool {
-        return self.current >= self.source_code.len();
+        self.current >= self.source_code.len()
     }
 
     fn advance(&mut self) -> char {

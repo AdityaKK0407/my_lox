@@ -56,7 +56,7 @@ pub fn min(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeError>
         RuntimeVal::Number(num) => *num,
         _ => {
             return Err(RuntimeError::TypeMismatch(
-                format!("Only type number and array allowed in 'min' function"),
+                "Only type number and array allowed in 'min' function".to_string(),
                 line,
             ));
         }
@@ -69,7 +69,7 @@ pub fn min(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeError>
             }
         } else {
             return Err(RuntimeError::TypeMismatch(
-                format!("Only type number and array allowed in 'min' function"),
+                "Only type number and array allowed in 'min' function".to_string(),
                 line,
             ));
         }
@@ -93,7 +93,7 @@ pub fn max(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeError>
         RuntimeVal::Number(num) => *num,
         _ => {
             return Err(RuntimeError::TypeMismatch(
-                format!("Only type number and array allowed in 'max' function"),
+                "Only type number and array allowed in 'max' function".to_string(),
                 line,
             ));
         }
@@ -106,7 +106,7 @@ pub fn max(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeError>
             }
         } else {
             return Err(RuntimeError::TypeMismatch(
-                format!("Only type number and array allowed in 'min' function"),
+                "Only type number and array allowed in 'min' function".to_string(),
                 line,
             ));
         }
@@ -138,15 +138,15 @@ pub fn number(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeErr
         RuntimeVal::String(str) => match str.parse::<f64>().ok() {
             Some(n) => Ok(make_number(n)),
             None => Err(RuntimeError::TypeCastingError(
-                format!("Invalid string provided, expected numeric string in 'number' function"),
+                "Invalid string provided, expected numeric string in 'number' function".to_string(),
                 line,
             )),
         },
         _ => {
-            return Err(RuntimeError::TypeMismatch(
-                format!("Only type number, bool and string allowed in 'number' function"),
+            Err(RuntimeError::TypeMismatch(
+                "Only type number, bool and string allowed in 'number' function".to_string(),
                 line,
-            ));
+            ))
         }
     }
 }
@@ -179,10 +179,10 @@ pub fn bool(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeError
             }
         }
         _ => {
-            return Err(RuntimeError::TypeMismatch(
-                format!("Only type number, bool and string allowed in 'bool' function"),
+            Err(RuntimeError::TypeMismatch(
+                "Only type number, bool and string allowed in 'bool' function".to_string(),
                 line,
-            ));
+            ))
         }
     }
 }
@@ -209,10 +209,10 @@ pub fn string(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeErr
         }
         RuntimeVal::String(str) => Ok(make_string(&str[..])),
         _ => {
-            return Err(RuntimeError::TypeMismatch(
-                format!("Only type number, bool and string allowed in 'string' function"),
+            Err(RuntimeError::TypeMismatch(
+                "Only type number, bool and string allowed in 'string' function".to_string(),
                 line,
-            ));
+            ))
         }
     }
 }
@@ -232,7 +232,7 @@ pub fn len(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeError>
         RuntimeVal::String(s) => Ok(make_number(s.len() as f64)),
         RuntimeVal::Array(arr) => Ok(make_number(arr.len() as f64)),
         _ => Err(RuntimeError::TypeMismatch(
-            format!("Only type string and array allowed in 'len' function"),
+            "Only type string and array allowed in 'len' function".to_string(),
             line,
         )),
     }
@@ -279,7 +279,7 @@ pub fn reverse(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeEr
         RuntimeVal::String(s) => Ok(make_string(&s.chars().rev().collect::<String>()[..])),
         RuntimeVal::Array(arr) => Ok(make_arr(&arr.clone().into_iter().rev().collect())),
         _ => Err(RuntimeError::TypeMismatch(
-            format!("Only type string allowed in 'reverse' function"),
+            "Only type string allowed in 'reverse' function".to_string(),
             line,
         )),
     }

@@ -54,7 +54,7 @@ impl Parser {
                 operator: Token {
                     token_type: token,
                     lexeme,
-                    line: line,
+                    line,
                 },
                 right: Box::new(value),
                 line,
@@ -118,7 +118,7 @@ impl Parser {
         let _ = self.expect(TokenType::RIGHTBRACE, "Missing closing '}' for object")?;
 
         Ok(Expr::ObjectLiteral {
-            properties: properties,
+            properties,
         })
     }
 
@@ -131,7 +131,7 @@ impl Parser {
             let right = self.parse_equality_expr()?;
             left = Expr::ComparisonLiteral {
                 left: Box::new(left),
-                operator: operator,
+                operator,
                 right: Box::new(right),
                 line,
             };
@@ -150,7 +150,7 @@ impl Parser {
             let right = self.parse_comparison_expr()?;
             left = Expr::ComparisonLiteral {
                 left: Box::new(left),
-                operator: operator,
+                operator,
                 right: Box::new(right),
                 line,
             };
@@ -171,7 +171,7 @@ impl Parser {
             let right = self.parse_additive_expr()?;
             left = Expr::ComparisonLiteral {
                 left: Box::new(left),
-                operator: operator,
+                operator,
                 right: Box::new(right),
                 line,
             };
@@ -188,7 +188,7 @@ impl Parser {
             let right = self.parse_multiplicative_expr()?;
             left = Expr::BinaryExpr {
                 left: Box::new(left),
-                operator: operator,
+                operator,
                 right: Box::new(right),
                 line,
             };
@@ -205,7 +205,7 @@ impl Parser {
             let right = self.parse_unary_expr()?;
             left = Expr::BinaryExpr {
                 left: Box::new(left),
-                operator: operator,
+                operator,
                 right: Box::new(right),
                 line,
             };
@@ -219,7 +219,7 @@ impl Parser {
             let line = operator.line;
             let right = self.parse_expr()?;
             Ok(Expr::Unary {
-                operator: operator,
+                operator,
                 right: Box::new(right),
                 line,
             })
@@ -318,7 +318,7 @@ impl Parser {
             object = Expr::Member {
                 object: Box::new(object),
                 property: Box::new(property),
-                computed: computed,
+                computed,
                 line: operator.line,
             };
         }

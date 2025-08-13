@@ -27,7 +27,7 @@ pub enum RuntimeError {
 
     EnvironmentError(String, usize),
 
-    InternalError, // Error should not occur but made to satify rust compiler
+    InternalError, // Error should not occur but made to satisfy rust compiler
 }
 
 #[derive(Debug, PartialEq)]

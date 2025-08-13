@@ -25,10 +25,11 @@ To view the book, click [Crafting Interpreters](https://craftinginterpreters.com
 
 - In REPL mode, semicolon is not required
 - Every expression returns a value that is printed to console
+- To exit a REPL, enter `exit`
 
 ## File
 
-- All statements except if-else, loops, functions and classes must end with semi-colon
+- All statements except if-else, loops, functions and classes must end with semicolon
 - Command line arguments can be provided to main function
 
 ## Language
@@ -84,7 +85,7 @@ NOTE - This method only works for Windows OS. For Linux or Mac, use option 2.
     cargo build --release
   ```
 
-- Alternatively you can download the project from github and save it in a directory of your choice
+- Alternatively you can download the project from GitHub and save it in a directory of your choice
 - To execute the program, run the following commands
 
   ```bash
@@ -187,7 +188,7 @@ NOTE - This method only works for Windows OS. For Linux or Mac, use option 2.
   - Arithmetic operators - (+, -, \*, /, %)
   - Logical operators - (and, or)
   - Comparison operators -(<, >, ==, !=, <=, >=)
-  - Short-hand assignment operators - (+=, -=, \*=, /=, %=)
+  - Shorthand assignment operators - (+=, -=, \*=, /=, %=)
 
 - Standard statements
 

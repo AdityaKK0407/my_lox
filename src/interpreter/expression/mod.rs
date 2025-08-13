@@ -67,18 +67,18 @@ fn evaluate_unary_expr(
         if let RuntimeVal::Bool(bit) = value {
             return Ok(make_bool(!bit));
         }
-        return Err(RuntimeError::TypeMismatch(
-            format!("'!' NOT operator is only valid for bools"),
+        Err(RuntimeError::TypeMismatch(
+            "'!' NOT operator is only valid for bools".to_string(),
             line,
-        ));
+        ))
     } else {
         if let RuntimeVal::Number(num) = value {
             return Ok(make_number(-num));
         }
-        return Err(RuntimeError::TypeMismatch(
-            format!("'-' negation operator is only valid for numbers"),
+        Err(RuntimeError::TypeMismatch(
+            "'-' negation operator is only valid for numbers".to_string(),
             line,
-        ));
+        ))
     }
 }
 
@@ -140,16 +140,16 @@ fn evaluate_super_expr(
         } = class
         {
             if let Some(parent_class) = superclass {
-                match lookup_var(env, &parent_class) {
-                    Ok(val) => return Ok(val),
+                return match lookup_var(env, &parent_class) {
+                    Ok(val) => Ok(val),
                     Err(_) => {
-                        return Err(RuntimeError::EnvironmentError(
+                        Err(RuntimeError::EnvironmentError(
                             format!(
                                 "Cannot use 'super' in '{}' class as parent class '{}' is not declared",
                                 name, parent_class
                             ),
                             line,
-                        ));
+                        ))
                     }
                 }
             }
@@ -208,18 +208,18 @@ fn evaluate_compare_expr(
     let right_hand_side = evaluate_expr(right, env)?;
 
     if operator.token_type == TokenType::AND || operator.token_type == TokenType::OR {
-        return evaluate_logical_expr(left_hand_side, right_hand_side, &operator.lexeme[..], line);
+        evaluate_logical_expr(left_hand_side, right_hand_side, &operator.lexeme[..], line)
     } else if operator.token_type == TokenType::EQUALEQUAL
         || operator.token_type == TokenType::BANGEQUAL
     {
-        return evaluate_equality_expr(left_hand_side, right_hand_side, &operator.lexeme[..], line);
+        evaluate_equality_expr(left_hand_side, right_hand_side, &operator.lexeme[..], line)
     } else {
-        return evaluate_comparison_expr(
+        evaluate_comparison_expr(
             left_hand_side,
             right_hand_side,
             &operator.lexeme[..],
             line,
-        );
+        )
     }
 }
 
@@ -344,26 +344,26 @@ fn evaluate_assignment(
             let value = evaluate_expr(value, env)?;
             match assign_var(env, &ident[..], value) {
                 Ok(val) => {
-                    return Ok(val);
+                    Ok(val)
                 }
                 Err(err) => match err {
                     EnvironmentError::ConstReassign => {
-                        return Err(RuntimeError::EnvironmentError(
+                        Err(RuntimeError::EnvironmentError(
                             format!(
                                 "{} is a constant. Constant values cannot be reassigned",
                                 ident
                             ),
                             *line,
-                        ));
+                        ))
                     }
                     EnvironmentError::VarNotDeclared => {
-                        return Err(RuntimeError::EnvironmentError(
+                        Err(RuntimeError::EnvironmentError(
                             format!("{} has not been declared yet.", ident),
                             *line,
-                        ));
+                        ))
                     }
                     EnvironmentError::ReDeclareVar => {
-                        return Err(RuntimeError::InternalError);
+                        Err(RuntimeError::InternalError)
                     }
                 },
             }
@@ -375,7 +375,7 @@ fn evaluate_assignment(
             line,
         } => {
             let _ = equate_member_expr(object, property, *computed, value, env, *line);
-            return evaluate_expr(value, env);
+            evaluate_expr(value, env)
         }
         _ => Err(RuntimeError::TypeMismatch(
             "Only variables and member expressions can be assigned values".into(),
@@ -529,8 +529,8 @@ fn evaluate_member_expr(
             (RuntimeVal::Object(map), RuntimeVal::String(str)) => {
                 let value = map.get(str.as_str());
                 match value {
-                    Some(val) => return Ok(val.clone()),
-                    None => return Ok(make_nil()),
+                    Some(val) => Ok(val.clone()),
+                    None => Ok(make_nil()),
                 }
             }
 
@@ -540,7 +540,7 @@ fn evaluate_member_expr(
                 }
                 let pos_num = num as usize;
                 if pos_num >= str.len() {
-                    return Err(RuntimeError::ArrayIndexOutOfBounds(format!("Array index is out of bounds"), line));
+                    return Err(RuntimeError::ArrayIndexOutOfBounds("Array index is out of bounds".to_string(), line));
                 }
                 Ok(make_string(&str.chars().nth(pos_num).unwrap().to_string()[..]))
             }
@@ -551,12 +551,12 @@ fn evaluate_member_expr(
                 }
                 let pos_num = num as usize;
                 if pos_num >= arr.len() {
-                    return Err(RuntimeError::ArrayIndexOutOfBounds(format!("Array index is out of bounds"), line));
+                    return Err(RuntimeError::ArrayIndexOutOfBounds("Array index is out of bounds".to_string(), line));
                 }
                 Ok(arr[pos_num].clone())
             }
 
-            _ => return Err(RuntimeError::InvalidMemberAccess("[]".into(), line)),
+            _ => Err(RuntimeError::InvalidMemberAccess("[]".into(), line)),
         }
     } else {
         let lexeme = match property {
@@ -568,13 +568,13 @@ fn evaluate_member_expr(
             match obj {
                 RuntimeVal::Object(map) => {
                     let res = map.get(lexeme.as_str());
-                    match res {
-                        Some(value) => return Ok(value.clone()),
+                    return match res {
+                        Some(value) => Ok(value.clone()),
                         None => {
-                            return Err(RuntimeError::UndefinedField(
+                            Err(RuntimeError::UndefinedField(
                                 format!("Object has no field named '{}'", lexeme),
                                 line,
-                            ));
+                            ))
                         }
                     }
                 }
@@ -685,11 +685,11 @@ fn equate_member_expr(
                 }
                 let pos_num = num as usize;
                 if pos_num >= str.len() {
-                    return Err(RuntimeError::ArrayIndexOutOfBounds(format!("Array index is out of bounds"), line));
+                    return Err(RuntimeError::ArrayIndexOutOfBounds("Array index is out of bounds".to_string(), line));
                 }
                 let res = match result {
                     RuntimeVal::String(ref s) => s,
-                    _ => return Err(RuntimeError::TypeMismatch(format!("Cannot assign non-string type value to string index"), line))
+                    _ => return Err(RuntimeError::TypeMismatch("Cannot assign non-string type value to string index".to_string(), line))
                 };
                 let new_str = format!("{}{}{}", &str[..pos_num], res, &str[pos_num+1..]);
                 let val = make_string(&new_str);
@@ -710,7 +710,7 @@ fn equate_member_expr(
                 }
                 let pos_num = num as usize;
                 if pos_num >= arr.len() {
-                    return Err(RuntimeError::ArrayIndexOutOfBounds(format!("Array index is out of bounds"), line));
+                    return Err(RuntimeError::ArrayIndexOutOfBounds("Array index is out of bounds".to_string(), line));
                 }
                 arr[pos_num] = result.clone();
                 let val = make_arr(&arr);

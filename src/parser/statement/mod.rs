@@ -25,7 +25,7 @@ impl Parser {
 
             return Ok(Stmt::VarDeclaration(VarDeclaration {
                 constant: false,
-                identifier: identifier,
+                identifier,
                 value: Box::new(Expr::Null(self.at().line)),
                 line,
             }));
@@ -37,7 +37,7 @@ impl Parser {
         self.scope.push(Scope::VarDeclaration);
         let declaration = Stmt::VarDeclaration(VarDeclaration {
             constant: is_constant,
-            identifier: identifier,
+            identifier,
             value: Box::new(self.parse_expr()?),
             line,
         });
@@ -286,7 +286,7 @@ impl Parser {
         }
         let _ = self.expect(
             TokenType::RIGHTBRACE,
-            "Missing '}' to end the body of the nlock statement",
+            "Missing '}' to end the body of the block statement",
         )?;
         Ok(Stmt::Block(stmts))
     }
@@ -361,9 +361,9 @@ impl Parser {
         self.scope.pop();
 
         Ok(Stmt::Function(FunctionDeclaration {
-            name: name,
-            parameters: parameters,
-            body: body,
+            name,
+            parameters,
+            body,
             line,
         }))
     }
@@ -406,17 +406,17 @@ impl Parser {
         while self.at().token_type != TokenType::RIGHTBRACE {
             let stmt = match self.parse_stmt() {
                 Ok(s) => s,
-                Err(e) => match e {
+                Err(e) => return match e {
                     ParserError::ScopeError(message, line) => {
-                        return Err(ParserError::ScopeError(
+                        Err(ParserError::ScopeError(
                             format!(
                                 "Invalid {} inside class body. Only method and field declarations are allowed.",
                                 message
                             ),
                             line,
-                        ));
+                        ))
                     }
-                    _ => return Err(e),
+                    _ => Err(e),
                 },
             };
             match stmt {
@@ -435,10 +435,10 @@ impl Parser {
 
         self.scope.pop();
         Ok(Stmt::Class(ClassDeclaration {
-            name: name,
+            name,
             static_fields: var,
-            methods: methods,
-            superclass: superclass,
+            methods,
+            superclass,
             line,
         }))
     }
