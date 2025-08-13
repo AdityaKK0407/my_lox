@@ -189,6 +189,7 @@ NOTE - This method only works for Windows OS. For Linux or Mac, use option 2.
   - Logical operators - (and, or)
   - Comparison operators -(<, >, ==, !=, <=, >=)
   - Shorthand assignment operators - (+=, -=, \*=, /=, %=)
+  - Unary operators - (-, !)
 
 - Standard statements
 
