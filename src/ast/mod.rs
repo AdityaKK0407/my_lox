@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::lexer::Token;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub enum Stmt {
     Expression(Expr),
     VarDeclaration(VarDeclaration),
@@ -18,7 +18,7 @@ pub enum Stmt {
     Class(ClassDeclaration),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct VarDeclaration {
     pub constant: bool,
     pub identifier: String,
@@ -26,7 +26,7 @@ pub struct VarDeclaration {
     pub line: usize,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct FunctionDeclaration {
     pub name: String,
     pub parameters: Vec<String>,
@@ -34,7 +34,7 @@ pub struct FunctionDeclaration {
     pub line: usize,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct ClassDeclaration {
     pub name: String,
     pub static_fields: Vec<VarDeclaration>,
@@ -43,7 +43,7 @@ pub struct ClassDeclaration {
     pub line: usize,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub enum Expr {
     NumericLiteral(f64, usize),
     Null(usize),
@@ -51,7 +51,8 @@ pub enum Expr {
     StringLiteral(String, usize),
     Identifier(String, usize),
     This(usize),
-    Super(usize),
+    Super(String, usize),
+    Array(Vec<Expr>, usize),
     Member {
         object: Box<Expr>,
         property: Box<Expr>,
@@ -90,7 +91,7 @@ pub enum Expr {
     },
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct Property {
     pub key: String,
     pub value: Option<Box<Expr>>,

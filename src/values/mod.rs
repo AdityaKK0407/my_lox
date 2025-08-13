@@ -14,13 +14,14 @@ pub enum EvalResult {
     NoDisplay,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum RuntimeVal {
     Bool(bool),
     Nil,
     Number(f64),
     String(String),
     Object(HashMap<String, RuntimeVal>),
+    Array(Vec<RuntimeVal>),
     Function {
         name: String,
         params: Vec<String>,
@@ -41,7 +42,7 @@ pub enum RuntimeVal {
     Instance {
         class_name: String,
         instance_env: Rc<RefCell<Environment>>,
-    }
+    },
 }
 
 pub fn make_number(num: f64) -> RuntimeVal {
@@ -62,6 +63,10 @@ pub fn make_string(str: &str) -> RuntimeVal {
 
 pub fn make_obj(map: &HashMap<String, RuntimeVal>) -> RuntimeVal {
     RuntimeVal::Object(map.clone())
+}
+
+pub fn make_arr(arr: &Vec<RuntimeVal>) -> RuntimeVal {
+    RuntimeVal::Array(arr.clone())
 }
 
 pub fn make_function(

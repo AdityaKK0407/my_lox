@@ -14,7 +14,12 @@ pub enum ParserError {
 pub enum RuntimeError {
     TypeMismatch(String, usize),
 
+    TypeCastingError(String, usize),
+
     InvalidArgumentCount(String, usize),
+
+    ArrayIndexOutOfBounds(String, usize),
+    InvalidArrayIndex(String, usize),
 
     InvalidMemberAccess(String, usize),
     UndefinedField(String, usize),
@@ -40,10 +45,12 @@ pub fn handle_lexer_error(line: usize, message: &str, code: &str) {
 pub fn handle_parser_error(error: ParserError, code: &[&str]) {
     match error {
         ParserError::EOF => eprintln!("Unexpected end of file: incomplete program structure"),
+
         ParserError::UnExpectedToken(s, line) => {
             eprintln!("Line {}: {}", line, code[line - 1]);
             eprintln!("Error: {}", s);
         }
+
         ParserError::ObjectKey(s, line) => {
             eprintln!("Line {}: {}", line, code[line - 1]);
             eprintln!(
@@ -51,24 +58,29 @@ pub fn handle_parser_error(error: ParserError, code: &[&str]) {
                 s
             );
         }
+
         ParserError::ConstValueNull(line) => {
             eprintln!("Line {}: {}", line, code[line - 1]);
             eprintln!("Error: Constant variable is not initialized.")
         }
+
         ParserError::ForLoopDeclaration(s, line) => {
             eprintln!("Line {}: {}", line, code[line - 1]);
             eprintln!("Error: Invalid for loop declaration. {}", s);
         }
+
         ParserError::MemberExpr(line) => {
             eprintln!("Line {}: {}", line, code[line - 1]);
             eprintln!(
                 "Error: Expected identifier or 'this' and 'super' keywords before dot operator"
             );
         }
+
         ParserError::PrimaryExpr(s, line) => {
             eprintln!("Line {}: {}", line, code[line - 1]);
             eprintln!("Error: Invalid expression. Found '{}'", s);
         }
+
         ParserError::ScopeError(s, line) => {
             eprintln!("Line {}: {}", line, code[line - 1]);
             eprintln!("Error: {}", s);
@@ -83,7 +95,22 @@ pub fn handle_runtime_error(error: RuntimeError, code: &[&str]) {
             eprintln!("Error: {}", s);
         }
 
+        RuntimeError::TypeCastingError(s, line) => {
+            eprintln!("Line {}: {}", line, code[line - 1]);
+            eprintln!("Error: {}", s);
+        }
+
         RuntimeError::InvalidArgumentCount(s, line) => {
+            eprintln!("Line {}: {}", line, code[line - 1]);
+            eprintln!("Error: {}", s);
+        }
+
+        RuntimeError::ArrayIndexOutOfBounds(s, line) => {
+            eprintln!("Line {}: {}", line, code[line - 1]);
+            eprintln!("Error: {}", s);
+        }
+
+        RuntimeError::InvalidArrayIndex(s, line) => {
             eprintln!("Line {}: {}", line, code[line - 1]);
             eprintln!("Error: {}", s);
         }

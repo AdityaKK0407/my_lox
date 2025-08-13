@@ -67,22 +67,30 @@ fn evaluate_first_pass(
             Stmt::Class(class) => {
                 let mut fields = HashMap::new();
                 for var in &class.static_fields {
-                    let res = var_declaration(var, env)?;
-                    match res {
-                        EvalResult::Value(value) => {
-                            fields.insert(var.identifier.clone(), value);
-                        }
-                        _ => panic!(),
-                    }
+                    let _ = var_declaration(var, env)?;
+                    let res = evaluate_expr(&var.value, env)?;
+                    fields.insert(var.identifier.clone(), res);
                 }
                 let mut methods = HashMap::new();
                 for (name, func) in &class.methods {
                     let res = make_function(&func.name[..], &func.parameters, &func.body, env);
                     methods.insert(name.clone(), res);
                 }
-                let class_val =
-                    make_class(&class.name[..], fields, methods, class.superclass.clone());
-                let _ = declare_var(env, &class.name[..], class_val, true);
+                let class_val = make_class(
+                    &class.name[..],
+                    fields,
+                    methods,
+                    class.superclass.clone(),
+                );
+                if let Err(_) = declare_var(env, &class.name[..], class_val, true) {
+                    return Err(RuntimeError::EnvironmentError(
+                        format!(
+                            "{} is already declared. Cannot redeclare variable with same name",
+                            class.name
+                        ),
+                        class.line,
+                    ));
+                }
             }
             _ => {
                 if !is_repl {
@@ -147,12 +155,20 @@ pub fn evaluate(
                 let res = make_function(&func.name[..], &func.parameters, &func.body, env);
                 method.insert(name.clone(), res);
             }
-            let class_val = make_class(&name[..], fields, method, superclass.clone());
+            let class_val = make_class(
+                &name[..],
+                fields,
+                method,
+                superclass.clone(),
+            );
             if let Err(_) = declare_var(env, &name[..], class_val, true) {
-                return Err(RuntimeError::EnvironmentError(format!(
+                return Err(RuntimeError::EnvironmentError(
+                    format!(
                         "{} is already declared. Cannot redeclare variable with same name",
                         name
-                    ), *line))
+                    ),
+                    *line,
+                ));
             }
             Ok(make_none())
         }

@@ -8,7 +8,7 @@ use crate::handle_errors::EnvironmentError;
 use crate::values::RuntimeVal;
 use crate::values::make_native_function;
 
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub enum Scope {
     Global,
     Class(String),
@@ -16,12 +16,12 @@ pub enum Scope {
     Constructor(String),
     Function(String),
     Loop,
+    VarDeclaration,
 }
 
-#[derive(Debug)]
 pub struct Environment {
     parent: Option<Rc<RefCell<Environment>>>,
-    variables: HashMap<String, RuntimeVal>,
+    pub variables: HashMap<String, RuntimeVal>,
     constants: HashSet<String>,
 }
 
@@ -38,40 +38,16 @@ impl Environment {
 }
 
 pub fn set_global_scope(env: &Rc<RefCell<Environment>>) {
-    let _ = declare_var(
-        env,
-        "clock",
-        make_native_function(clock),
-        true,
-    );
+    let _ = declare_var(env, "clock", make_native_function(clock), true);
+    let _ = declare_var(env, "scan", make_native_function(scan), true);
     let _ = declare_var(env, "min", make_native_function(min), true);
     let _ = declare_var(env, "max", make_native_function(max), true);
-    let _ = declare_var(
-        env,
-        "number",
-        make_native_function(number),
-        true,
-    );
+    let _ = declare_var(env, "number", make_native_function(number), true);
     let _ = declare_var(env, "bool", make_native_function(bool), true);
-    let _ = declare_var(
-        env,
-        "string",
-        make_native_function(string),
-        true,
-    );
-    let _ = declare_var(
-        env,
-        "var_type",
-        make_native_function(var_type),
-        true,
-    );
-
-    let _ = declare_var(
-        env,
-        "reverse",
-        make_native_function(reverse),
-        true,
-    );
+    let _ = declare_var(env, "string", make_native_function(string), true);
+    let _ = declare_var(env, "len", make_native_function(len), true);
+    let _ = declare_var(env, "type_of", make_native_function(type_of), true);
+    let _ = declare_var(env, "reverse", make_native_function(reverse), true);
 }
 
 pub fn declare_var(
@@ -106,7 +82,10 @@ pub fn assign_var(
     Ok(value)
 }
 
-pub fn lookup_var(env: &Rc<RefCell<Environment>>, var_name: &str) -> Result<RuntimeVal, EnvironmentError> {
+pub fn lookup_var(
+    env: &Rc<RefCell<Environment>>,
+    var_name: &str,
+) -> Result<RuntimeVal, EnvironmentError> {
     let final_env = resolve(env, var_name)?;
     let env = final_env.borrow();
     Ok(env.variables.get(var_name).unwrap().clone())

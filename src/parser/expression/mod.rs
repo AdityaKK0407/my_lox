@@ -38,6 +38,7 @@ impl Parser {
 
         let (token, lexeme) = match self.at().token_type {
             TokenType::MINUSEQUAL => (TokenType::MINUSEQUAL, String::from("-")),
+            TokenType::MODULUSEQUAL => (TokenType::MODULUSEQUAL, String::from("%")),
             TokenType::PLUSEQUAL => (TokenType::PLUSEQUAL, String::from("+")),
             TokenType::SLASHEQUAL => (TokenType::SLASHEQUAL, String::from("/")),
             TokenType::STAREQUAL => (TokenType::STAREQUAL, String::from("*")),
@@ -303,7 +304,7 @@ impl Parser {
                 property = self.parse_primary_expr()?;
 
                 match property {
-                    Expr::Identifier(..) | Expr::This(_) | Expr::Super(_) => {}
+                    Expr::Identifier(..) | Expr::This(_) | Expr::Super(_, _) => {}
                     _ => return Err(ParserError::MemberExpr(operator.line)),
                 }
             } else {
@@ -352,18 +353,19 @@ impl Parser {
                 }
             }
             TokenType::SUPER => {
-                let valid = self.scope.iter().rev().any(|scope| match scope {
-                    Scope::Class(_) | Scope::Method(_) | Scope::Constructor(_) => true,
-                    _ => false,
-                });
-                if !valid {
+                if let Some(Scope::Class(class_name)) = self
+                    .scope
+                    .iter()
+                    .rev()
+                    .find(|class| matches!(class, Scope::Class(_)))
+                {
+                    Ok(Expr::Super(class_name.into(), line))
+                } else {
                     Err(ParserError::ScopeError(
                         "'super' keyword is only allowed inside class methods or constructors"
                             .to_string(),
                         line,
                     ))
-                } else {
-                    Ok(Expr::Super(line))
                 }
             }
             TokenType::TRUE => Ok(Expr::BoolLiteral(true, line)),
@@ -376,6 +378,20 @@ impl Parser {
                     "Missing closing ')' for grouping expression",
                 )?;
                 Ok(value)
+            },
+            TokenType::LEFTBRACKET => {
+                let mut value = vec![];
+
+                while self.at().token_type != TokenType::RIGHTBRACKET {
+                    value.push(self.parse_primary_expr()?);
+                    if self.at().token_type == TokenType::RIGHTBRACKET {
+                        break;
+                    }
+                    let _ = self.expect(TokenType::COMMA, "Missing ',' after array element")?;
+                }
+
+                let _ = self.eat();
+                Ok(Expr::Array(value, line))
             }
             _ => Err(ParserError::PrimaryExpr(tk.lexeme, tk.line)),
         }

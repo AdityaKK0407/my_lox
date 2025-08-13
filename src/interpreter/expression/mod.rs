@@ -21,7 +21,8 @@ pub fn evaluate_expr(
         Expr::StringLiteral(str, _) => Ok(make_string(&str[..])),
         Expr::Identifier(symbol, line) => evaluate_identifier(&symbol[..], env, *line),
         Expr::This(line) => evaluate_identifier("this", env, *line),
-        Expr::Super(line) => evaluate_identifier("super", env, *line),
+        Expr::Super(class_name, line) => evaluate_super_expr(class_name, env, *line),
+        Expr::Array(array, _) => evaluate_array_expr(array, env),
         Expr::Member {
             object,
             property,
@@ -52,6 +53,32 @@ pub fn evaluate_expr(
             value,
             line,
         } => evaluate_assignment(assignee, value, env, *line),
+    }
+}
+
+fn evaluate_unary_expr(
+    operator: &Token,
+    right: &Expr,
+    env: &Rc<RefCell<Environment>>,
+    line: usize,
+) -> Result<RuntimeVal, RuntimeError> {
+    let value = evaluate_expr(right, env)?;
+    if operator.token_type == TokenType::BANG {
+        if let RuntimeVal::Bool(bit) = value {
+            return Ok(make_bool(!bit));
+        }
+        return Err(RuntimeError::TypeMismatch(
+            format!("'!' NOT operator is only valid for bools"),
+            line,
+        ));
+    } else {
+        if let RuntimeVal::Number(num) = value {
+            return Ok(make_number(-num));
+        }
+        return Err(RuntimeError::TypeMismatch(
+            format!("'-' negation operator is only valid for numbers"),
+            line,
+        ));
     }
 }
 
@@ -88,57 +115,6 @@ fn evaluate_binary_expr(
     ))
 }
 
-fn evaluate_assignment(
-    assignee: &Expr,
-    value: &Expr,
-    env: &Rc<RefCell<Environment>>,
-    line: usize,
-) -> Result<RuntimeVal, RuntimeError> {
-    match assignee {
-        Expr::Identifier(ident, line) => {
-            let value = evaluate_expr(value, env)?;
-            match assign_var(env, &ident[..], value) {
-                Ok(val) => {
-                    return Ok(val);
-                }
-                Err(err) => match err {
-                    EnvironmentError::ConstReassign => {
-                        return Err(RuntimeError::EnvironmentError(
-                            format!(
-                                "{} is a constant. Constant values cannot be reassigned",
-                                ident
-                            ),
-                            *line,
-                        ));
-                    }
-                    EnvironmentError::VarNotDeclared => {
-                        return Err(RuntimeError::EnvironmentError(
-                            format!("{} has not been declared yet.", ident),
-                            *line,
-                        ));
-                    }
-                    EnvironmentError::ReDeclareVar => {
-                        return Err(RuntimeError::InternalError);
-                    }
-                },
-            }
-        }
-        Expr::Member {
-            object,
-            property,
-            computed,
-            line,
-        } => {
-            let _ = equate_member_expr(object, property, *computed, value, env, *line);
-            return evaluate_expr(value, env);
-        }
-        _ => Err(RuntimeError::TypeMismatch(
-            "Only variables and member expressions can be assigned values".into(),
-            line,
-        )),
-    }
-}
-
 fn evaluate_identifier(
     ident: &str,
     env: &Rc<RefCell<Environment>>,
@@ -151,6 +127,35 @@ fn evaluate_identifier(
             line,
         )),
     }
+}
+
+fn evaluate_super_expr(
+    class_name: &str,
+    env: &Rc<RefCell<Environment>>,
+    line: usize,
+) -> Result<RuntimeVal, RuntimeError> {
+    if let Ok(class) = lookup_var(env, class_name) {
+        if let RuntimeVal::Class {
+            name, superclass, ..
+        } = class
+        {
+            if let Some(parent_class) = superclass {
+                match lookup_var(env, &parent_class) {
+                    Ok(val) => return Ok(val),
+                    Err(_) => {
+                        return Err(RuntimeError::EnvironmentError(
+                            format!(
+                                "Cannot use 'super' in '{}' class as parent class '{}' is not declared",
+                                name, parent_class
+                            ),
+                            line,
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    Err(RuntimeError::InternalError)
 }
 
 fn evaluate_object_expr(
@@ -177,6 +182,19 @@ fn evaluate_object_expr(
         map.insert(prop.key.clone(), runtime_val);
     }
     Ok(make_obj(&map))
+}
+
+fn evaluate_array_expr(
+    array: &[Expr],
+    env: &Rc<RefCell<Environment>>,
+) -> Result<RuntimeVal, RuntimeError> {
+    let mut val = vec![];
+
+    for arr in array {
+        val.push(evaluate_expr(arr, env)?);
+    }
+
+    Ok(make_arr(&val))
 }
 
 fn evaluate_compare_expr(
@@ -315,29 +333,54 @@ fn evaluate_comparison_expr(
     ))
 }
 
-fn evaluate_unary_expr(
-    operator: &Token,
-    right: &Expr,
+fn evaluate_assignment(
+    assignee: &Expr,
+    value: &Expr,
     env: &Rc<RefCell<Environment>>,
     line: usize,
 ) -> Result<RuntimeVal, RuntimeError> {
-    let value = evaluate_expr(right, env)?;
-    if operator.token_type == TokenType::BANG {
-        if let RuntimeVal::Bool(bit) = value {
-            return Ok(make_bool(!bit));
+    match assignee {
+        Expr::Identifier(ident, line) => {
+            let value = evaluate_expr(value, env)?;
+            match assign_var(env, &ident[..], value) {
+                Ok(val) => {
+                    return Ok(val);
+                }
+                Err(err) => match err {
+                    EnvironmentError::ConstReassign => {
+                        return Err(RuntimeError::EnvironmentError(
+                            format!(
+                                "{} is a constant. Constant values cannot be reassigned",
+                                ident
+                            ),
+                            *line,
+                        ));
+                    }
+                    EnvironmentError::VarNotDeclared => {
+                        return Err(RuntimeError::EnvironmentError(
+                            format!("{} has not been declared yet.", ident),
+                            *line,
+                        ));
+                    }
+                    EnvironmentError::ReDeclareVar => {
+                        return Err(RuntimeError::InternalError);
+                    }
+                },
+            }
         }
-        return Err(RuntimeError::TypeMismatch(
-            format!("'!' NOT operator is only valid for bools"),
+        Expr::Member {
+            object,
+            property,
+            computed,
             line,
-        ));
-    } else {
-        if let RuntimeVal::Number(num) = value {
-            return Ok(make_number(-num));
+        } => {
+            let _ = equate_member_expr(object, property, *computed, value, env, *line);
+            return evaluate_expr(value, env);
         }
-        return Err(RuntimeError::TypeMismatch(
-            format!("'-' negation operator is only valid for numbers"),
+        _ => Err(RuntimeError::TypeMismatch(
+            "Only variables and member expressions can be assigned values".into(),
             line,
-        ));
+        )),
     }
 }
 
@@ -346,13 +389,12 @@ fn evaluate_function_body(
     args: &[Expr],
     params: &[String],
     body: &[Stmt],
-    env: &Rc<RefCell<Environment>>,
     local_env: &Rc<RefCell<Environment>>,
     index: usize,
     line: usize,
 ) -> Result<RuntimeVal, RuntimeError> {
     let callable = ["function", "method", "constructor"];
-    if args.len() < params.len() {
+    if args.len() != params.len() {
         return Err(RuntimeError::InvalidArgumentCount(
             format!(
                 "Expected {}, found {} arguments provided to {} {}",
@@ -364,20 +406,9 @@ fn evaluate_function_body(
             line,
         ));
     }
-    if args.len() > params.len() {
-        return Err(RuntimeError::InvalidArgumentCount(
-            format!(
-                "Expected {}, found {} arguments provided to {} {}",
-                params.len(),
-                args.len(),
-                callable[index],
-                name
-            ),
-            line,
-        ));
-    }
+
     for i in 0..args.len() {
-        let value = evaluate_expr(&args[i], env)?;
+        let value = evaluate_expr(&args[i], local_env)?;
         if let Err(_) = declare_var(&local_env, &params[i][..], value, false) {
             return Err(RuntimeError::EnvironmentError(
                 format!(
@@ -407,16 +438,11 @@ fn evaluate_function_call(
 ) -> Result<RuntimeVal, RuntimeError> {
     let call = evaluate_expr(caller, env)?;
     match call {
-        RuntimeVal::Class {
-            name,
-            methods,
-            superclass,
-            ..
-        } => {
+        RuntimeVal::Class { name, methods, .. } => {
             let instance_env = Environment::new(None);
-            let constructor = methods.get(name.as_str());
+            let class_constructor = methods.get(name.as_str());
             let instance = make_instance(&name[..], instance_env);
-            if let Some(func) = constructor {
+            if let Some(func) = class_constructor {
                 if let RuntimeVal::Function {
                     name,
                     params,
@@ -425,43 +451,19 @@ fn evaluate_function_call(
                 } = func
                 {
                     let local_env = Environment::new(Some(Rc::clone(&closure)));
-                    if let Err(_) = declare_var(&local_env, "this", instance.clone(), true) {
+                    if let Err(_) = declare_var(&local_env, "this", instance.clone(), false) {
                         return Err(RuntimeError::InternalError);
-                    }
-                    if let Some(parent) = superclass {
-                        let superclass_instance = match lookup_var(env, &parent[..]) {
-                            Ok(val) => val,
-                            Err(_) => {
-                                return Err(RuntimeError::EnvironmentError(
-                                    format!(
-                                        "{} superclass is not defined but is inherited by class {}",
-                                        parent, name
-                                    ),
-                                    line,
-                                ));
-                            }
-                        };
-                        if let Err(_) = declare_var(&local_env, "super", superclass_instance, true)
-                        {
-                            return Err(RuntimeError::InternalError);
-                        }
                     }
                     let _ = evaluate_function_body(
                         &name[..],
                         args,
-                        params,
-                        body,
-                        env,
+                        &params,
+                        &body,
                         &local_env,
                         2,
                         line,
                     )?;
                 }
-            } else {
-                return Err(RuntimeError::UndefinedProperty(
-                    format!("Constructor is not defined in class '{}'", name),
-                    line,
-                ));
             }
             return Ok(instance);
         }
@@ -483,7 +485,6 @@ fn evaluate_function_call(
                     args,
                     &params,
                     &body,
-                    env,
                     &local_env,
                     1,
                     line,
@@ -498,16 +499,7 @@ fn evaluate_function_call(
             closure,
         } => {
             let local_env = Environment::new(Some(Rc::clone(&closure)));
-            return evaluate_function_body(
-                &name[..],
-                args,
-                &params,
-                &body,
-                env,
-                &local_env,
-                0,
-                line,
-            );
+            return evaluate_function_body(&name[..], args, &params, &body, &local_env, 0, line);
         }
 
         RuntimeVal::NativeFunction(func) => {
@@ -541,6 +533,29 @@ fn evaluate_member_expr(
                     None => return Ok(make_nil()),
                 }
             }
+
+            (RuntimeVal::String(str), RuntimeVal::Number(num)) => {
+                if num < 0.0 || num.fract() != 0.0 {
+                    return Err(RuntimeError::InvalidArrayIndex(format!("'{}' is an invalid type. Arrays can only be accessed with positive integers", num), line));
+                }
+                let pos_num = num as usize;
+                if pos_num >= str.len() {
+                    return Err(RuntimeError::ArrayIndexOutOfBounds(format!("Array index is out of bounds"), line));
+                }
+                Ok(make_string(&str.chars().nth(pos_num).unwrap().to_string()[..]))
+            }
+
+            (RuntimeVal::Array(arr), RuntimeVal::Number(num)) => {
+                if num < 0.0 || num.fract() != 0.0 {
+                    return Err(RuntimeError::InvalidArrayIndex(format!("'{}' is an invalid type. Arrays can only be accessed with positive integers", num), line));
+                }
+                let pos_num = num as usize;
+                if pos_num >= arr.len() {
+                    return Err(RuntimeError::ArrayIndexOutOfBounds(format!("Array index is out of bounds"), line));
+                }
+                Ok(arr[pos_num].clone())
+            }
+
             _ => return Err(RuntimeError::InvalidMemberAccess("[]".into(), line)),
         }
     } else {
@@ -569,8 +584,8 @@ fn evaluate_member_expr(
                     static_fields,
                     methods,
                     superclass,
+                    ..
                 } => {
-                    println!("{}", name);
                     let method = methods.get(lexeme);
                     if let Some(method) = method {
                         if let Some(val) = method_exists {
@@ -642,13 +657,74 @@ fn equate_member_expr(
 ) -> Result<RuntimeVal, RuntimeError> {
     let result = evaluate_expr(value, env)?;
     let obj = evaluate_expr(object, env)?;
+    let lexeme_name = match object {
+        Expr::Identifier(s, _) => s,
+        _ => return Err(RuntimeError::InternalError),
+    };
 
     if computed {
         let key = evaluate_expr(property, env)?;
         match (obj, key) {
             (RuntimeVal::Object(mut map), RuntimeVal::String(str)) => {
                 map.insert(str, result.clone());
+                let val = make_obj(&map);
+                if let Err(_) = assign_var(env, &lexeme_name[..], val) {
+                    return Err(RuntimeError::EnvironmentError(
+                        format!(
+                            "'{}' is a constant. Constant values cannot be reassigned.",
+                            lexeme_name
+                        ),
+                        line,
+                    ));
+                }
             }
+
+            (RuntimeVal::String(str), RuntimeVal::Number(num)) => {
+                if num < 0.0 || num.fract() != 0.0 {
+                    return Err(RuntimeError::InvalidArrayIndex(format!("'{}' is an invalid type. Arrays can only be accessed with positive integers", num), line));
+                }
+                let pos_num = num as usize;
+                if pos_num >= str.len() {
+                    return Err(RuntimeError::ArrayIndexOutOfBounds(format!("Array index is out of bounds"), line));
+                }
+                let res = match result {
+                    RuntimeVal::String(ref s) => s,
+                    _ => return Err(RuntimeError::TypeMismatch(format!("Cannot assign non-string type value to string index"), line))
+                };
+                let new_str = format!("{}{}{}", &str[..pos_num], res, &str[pos_num+1..]);
+                let val = make_string(&new_str);
+                if let Err(_) = assign_var(env, &lexeme_name[..], val) {
+                    return Err(RuntimeError::EnvironmentError(
+                        format!(
+                            "'{}' is a constant. Constant values cannot be reassigned.",
+                            lexeme_name
+                        ),
+                        line,
+                    ));
+                }
+            }
+
+            (RuntimeVal::Array(mut arr), RuntimeVal::Number(num)) => {
+                if num < 0.0 || num.fract() != 0.0 {
+                    return Err(RuntimeError::InvalidArrayIndex(format!("'{}' is an invalid type. Arrays can only be accessed with positive integers", num), line));
+                }
+                let pos_num = num as usize;
+                if pos_num >= arr.len() {
+                    return Err(RuntimeError::ArrayIndexOutOfBounds(format!("Array index is out of bounds"), line));
+                }
+                arr[pos_num] = result.clone();
+                let val = make_arr(&arr);
+                if let Err(_) = assign_var(env, &lexeme_name[..], val) {
+                    return Err(RuntimeError::EnvironmentError(
+                        format!(
+                            "'{}' is a constant. Constant values cannot be reassigned.",
+                            lexeme_name
+                        ),
+                        line,
+                    ));
+                }
+            }
+
             _ => return Err(RuntimeError::InvalidMemberAccess("[]".into(), line)),
         }
     } else {
@@ -659,13 +735,23 @@ fn equate_member_expr(
         match obj {
             RuntimeVal::Object(mut map) => {
                 map.insert(lexeme.clone(), result.clone());
+                let val = make_obj(&map);
+                if let Err(_) = assign_var(env, &lexeme_name[..], val) {
+                    return Err(RuntimeError::EnvironmentError(
+                        format!(
+                            "'{}' is a constant. Constant values cannot be reassigned.",
+                            lexeme_name
+                        ),
+                        line,
+                    ));
+                }
             }
 
             RuntimeVal::Class {
                 name,
                 mut static_fields,
                 methods,
-                ..
+                superclass,
             } => {
                 let method = methods.get(lexeme);
                 if let Some(_) = method {
@@ -678,6 +764,10 @@ fn equate_member_expr(
                     ));
                 }
                 static_fields.insert(lexeme.clone(), result.clone());
+                let val = make_class(&name, static_fields, methods, superclass);
+                if let Err(_) = assign_var(env, &name[..], val) {
+                    return Err(RuntimeError::InternalError);
+                }
             }
 
             RuntimeVal::Instance { instance_env, .. } => {
@@ -687,6 +777,7 @@ fn equate_member_expr(
                     }
                 }
             }
+
             _ => return Err(RuntimeError::InvalidMemberAccess(".".into(), line)),
         }
     }

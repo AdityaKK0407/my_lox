@@ -26,6 +26,9 @@ mod global_scope;
 mod values;
 
 pub fn run_file(file_path: &str, command_line_args: &[&str]) -> Result<(), Box<dyn Error>> {
+    if !file_path.ends_with(".lox") {
+        return Err("Invalid file type, expected a .lox file".into());
+    }
     let contents = fs::read_to_string(file_path)?;
     let mut env = Environment::new(None);
     run(&contents[..], &mut env, command_line_args, false);
@@ -73,6 +76,7 @@ fn run(
             return;
         }
     };
+
     if let Err(e) =
         interpreter::interpreter::evaluate_program(&parsed_program, env, command_line_args, is_repl)
     {

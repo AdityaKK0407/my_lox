@@ -1,3 +1,4 @@
+use std::io;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
@@ -6,7 +7,13 @@ use crate::values::*;
 
 pub fn clock(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeError> {
     if args.len() > 0 {
-        return Err(RuntimeError::InvalidArgumentCount(format!("Expected 1, found {} arguments provided to native function 'clock'", args.len()), line));
+        return Err(RuntimeError::InvalidArgumentCount(
+            format!(
+                "Expected 1, found {} arguments provided to native function 'clock'",
+                args.len()
+            ),
+            line,
+        ));
     }
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -15,17 +22,43 @@ pub fn clock(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeErro
     Ok(make_number(time))
 }
 
+pub fn scan(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeError> {
+    if args.len() != 0 {
+        return Err(RuntimeError::InvalidArgumentCount(
+            format!(
+                "Expected 1, found {} arguments provided to native function 'reverse'",
+                args.len()
+            ),
+            line,
+        ));
+    }
+
+    let mut input = String::new();
+    io::stdin()
+        .read_line(&mut input)
+        .expect("Failed to scan input");
+
+    Ok(make_string(&input[..]))
+}
+
 pub fn min(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeError> {
     if args.len() < 2 {
-        return Err(RuntimeError::InvalidArgumentCount(format!("Expected more than 2, found {} arguments provided to native function 'min'", args.len()), line));
+        return Err(RuntimeError::InvalidArgumentCount(
+            format!(
+                "Expected more than 2, found {} arguments provided to native function 'min'",
+                args.len()
+            ),
+            line,
+        ));
     }
 
     let mut min = match &args[0] {
         RuntimeVal::Number(num) => *num,
         _ => {
-            return Err(RuntimeError::TypeMismatch(format!(
-                "Only type number allowed in 'min' function"
-            ), line));
+            return Err(RuntimeError::TypeMismatch(
+                format!("Only type number and array allowed in 'min' function"),
+                line,
+            ));
         }
     };
 
@@ -35,7 +68,10 @@ pub fn min(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeError>
                 min = *num;
             }
         } else {
-            return Err(RuntimeError::TypeMismatch(format!("Only type number allowed in 'min' function"), line));
+            return Err(RuntimeError::TypeMismatch(
+                format!("Only type number and array allowed in 'min' function"),
+                line,
+            ));
         }
     }
 
@@ -44,15 +80,22 @@ pub fn min(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeError>
 
 pub fn max(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeError> {
     if args.len() < 2 {
-        return Err(RuntimeError::InvalidArgumentCount(format!("Expected more than 2, found {} arguments provided to native function 'max'", args.len()), line));
+        return Err(RuntimeError::InvalidArgumentCount(
+            format!(
+                "Expected more than 2, found {} arguments provided to native function 'max'",
+                args.len()
+            ),
+            line,
+        ));
     }
 
     let mut max = match &args[0] {
         RuntimeVal::Number(num) => *num,
         _ => {
-            return Err(RuntimeError::TypeMismatch(format!(
-                "Only type number allowed in 'max' function"
-            ), line));
+            return Err(RuntimeError::TypeMismatch(
+                format!("Only type number and array allowed in 'max' function"),
+                line,
+            ));
         }
     };
 
@@ -62,7 +105,10 @@ pub fn max(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeError>
                 max = *num;
             }
         } else {
-            return Err(RuntimeError::TypeMismatch(format!("Only type number allowed in 'min' function"), line));
+            return Err(RuntimeError::TypeMismatch(
+                format!("Only type number and array allowed in 'min' function"),
+                line,
+            ));
         }
     }
 
@@ -71,7 +117,13 @@ pub fn max(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeError>
 
 pub fn number(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeError> {
     if args.len() != 1 {
-        return Err(RuntimeError::InvalidArgumentCount(format!("Expected 1, found {} arguments provided to native function 'number'", args.len()), line));
+        return Err(RuntimeError::InvalidArgumentCount(
+            format!(
+                "Expected 1, found {} arguments provided to native function 'number'",
+                args.len()
+            ),
+            line,
+        ));
     }
 
     match &args[0] {
@@ -83,18 +135,31 @@ pub fn number(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeErr
                 Ok(make_number(0.0))
             }
         }
-        RuntimeVal::String(str) => Ok(make_number(str.parse::<f64>().unwrap())),
+        RuntimeVal::String(str) => match str.parse::<f64>().ok() {
+            Some(n) => Ok(make_number(n)),
+            None => Err(RuntimeError::TypeCastingError(
+                format!("Invalid string provided, expected numeric string in 'number' function"),
+                line,
+            )),
+        },
         _ => {
-            return Err(RuntimeError::TypeMismatch(format!(
-                "Only type number, bool and string allowed in 'number' function"
-            ), line));
+            return Err(RuntimeError::TypeMismatch(
+                format!("Only type number, bool and string allowed in 'number' function"),
+                line,
+            ));
         }
     }
 }
 
 pub fn bool(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeError> {
     if args.len() != 1 {
-        return Err(RuntimeError::InvalidArgumentCount(format!("Expected 1, found {} arguments provided to native function 'bool'", args.len()), line));
+        return Err(RuntimeError::InvalidArgumentCount(
+            format!(
+                "Expected 1, found {} arguments provided to native function 'bool'",
+                args.len()
+            ),
+            line,
+        ));
     }
 
     match &args[0] {
@@ -114,16 +179,23 @@ pub fn bool(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeError
             }
         }
         _ => {
-            return Err(RuntimeError::TypeMismatch(format!(
-                "Only type number, bool and string allowed in 'bool' function"
-            ), line));
+            return Err(RuntimeError::TypeMismatch(
+                format!("Only type number, bool and string allowed in 'bool' function"),
+                line,
+            ));
         }
     }
 }
 
 pub fn string(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeError> {
     if args.len() != 1 {
-        return Err(RuntimeError::InvalidArgumentCount(format!("Expected 1, found {} arguments provided to native function 'string'", args.len()), line));
+        return Err(RuntimeError::InvalidArgumentCount(
+            format!(
+                "Expected 1, found {} arguments provided to native function 'string'",
+                args.len()
+            ),
+            line,
+        ));
     }
 
     match &args[0] {
@@ -137,16 +209,44 @@ pub fn string(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeErr
         }
         RuntimeVal::String(str) => Ok(make_string(&str[..])),
         _ => {
-            return Err(RuntimeError::TypeMismatch(format!(
-                "Only type number, bool and string allowed in 'string' function"
-            ), line));
+            return Err(RuntimeError::TypeMismatch(
+                format!("Only type number, bool and string allowed in 'string' function"),
+                line,
+            ));
         }
     }
 }
 
-pub fn var_type(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeError> {
+pub fn len(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeError> {
     if args.len() != 1 {
-        return Err(RuntimeError::InvalidArgumentCount(format!("Expected 1, found {} arguments provided to native function 'var_type'", args.len()), line));
+        return Err(RuntimeError::InvalidArgumentCount(
+            format!(
+                "Expected 1, found {} arguments provided to native function 'var_type'",
+                args.len()
+            ),
+            line,
+        ));
+    }
+
+    match &args[0] {
+        RuntimeVal::String(s) => Ok(make_number(s.len() as f64)),
+        RuntimeVal::Array(arr) => Ok(make_number(arr.len() as f64)),
+        _ => Err(RuntimeError::TypeMismatch(
+            format!("Only type string and array allowed in 'len' function"),
+            line,
+        )),
+    }
+}
+
+pub fn type_of(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::InvalidArgumentCount(
+            format!(
+                "Expected 1, found {} arguments provided to native function 'var_type'",
+                args.len()
+            ),
+            line,
+        ));
     }
 
     match &args[0] {
@@ -155,6 +255,7 @@ pub fn var_type(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeE
         RuntimeVal::Nil => Ok(make_string("Nil")),
         RuntimeVal::String(_) => Ok(make_string("String")),
         RuntimeVal::Object(_) => Ok(make_string("Object")),
+        RuntimeVal::Array(_) => Ok(make_string("Array")),
         RuntimeVal::Function { .. } => Ok(make_string("Function")),
         RuntimeVal::NativeFunction(_) => Ok(make_string("Native function")),
         RuntimeVal::Method { .. } => Ok(make_string("Method")),
@@ -165,11 +266,21 @@ pub fn var_type(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeE
 
 pub fn reverse(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeError> {
     if args.len() != 1 {
-        return Err(RuntimeError::InvalidArgumentCount(format!("Expected 1, found {} arguments provided to native function 'reverse'", args.len()), line));
+        return Err(RuntimeError::InvalidArgumentCount(
+            format!(
+                "Expected 1, found {} arguments provided to native function 'reverse'",
+                args.len()
+            ),
+            line,
+        ));
     }
 
     match &args[0] {
         RuntimeVal::String(s) => Ok(make_string(&s.chars().rev().collect::<String>()[..])),
-        _ => Err(RuntimeError::TypeMismatch(format!("Only type string allowed in 'reverse' function"), line)),
+        RuntimeVal::Array(arr) => Ok(make_arr(&arr.clone().into_iter().rev().collect())),
+        _ => Err(RuntimeError::TypeMismatch(
+            format!("Only type string allowed in 'reverse' function"),
+            line,
+        )),
     }
 }

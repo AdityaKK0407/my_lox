@@ -57,6 +57,7 @@ pub fn print_runtime_val(runtime_val: RuntimeVal) {
         RuntimeVal::Nil => print!("nil"),
         RuntimeVal::String(s) => print!("{}", s),
         RuntimeVal::Object(obj) => print_obj(obj),
+        RuntimeVal::Array(arr) => print_arr(arr),
         _ => {}
     }
 }
@@ -69,6 +70,15 @@ fn print_obj(obj: HashMap<String, RuntimeVal>) {
         println!(",");
     }
     println!("}}");
+}
+
+fn print_arr(arr: Vec<RuntimeVal>) {
+    print!("[");
+    for val in arr {
+        print_runtime_val(val);
+        print!(", ");
+    }
+    println!("]");
 }
 
 pub fn if_else_stmt(

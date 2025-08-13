@@ -34,12 +34,14 @@ impl Parser {
             TokenType::EQUAL,
             "Expected '=' for initialization of variable",
         )?;
+        self.scope.push(Scope::VarDeclaration);
         let declaration = Stmt::VarDeclaration(VarDeclaration {
             constant: is_constant,
             identifier: identifier,
             value: Box::new(self.parse_expr()?),
             line,
         });
+        self.scope.pop();
 
         let _ = self.expect(
             TokenType::SEMICOLON,
@@ -289,7 +291,7 @@ impl Parser {
         Ok(Stmt::Block(stmts))
     }
 
-    pub fn parse_function_statement(&mut self) -> Result<Stmt, ParserError> {
+    pub fn parse_functional_statement(&mut self) -> Result<Stmt, ParserError> {
         let line = self.eat().line;
 
         let name = self
@@ -298,6 +300,7 @@ impl Parser {
                 "Expected function name after 'fun' keyword",
             )?
             .lexeme;
+
         if let Scope::Class(class_name) = self.scope.last().unwrap() {
             if class_name == &name {
                 self.scope.push(Scope::Constructor(name.clone()));
@@ -307,6 +310,7 @@ impl Parser {
         } else {
             self.scope.push(Scope::Function(name.clone()));
         }
+
         let _ = self.expect(
             TokenType::LEFTPAREN,
             format!("Missing '(' to declare parameters of function {}", name).as_str(),
@@ -355,6 +359,7 @@ impl Parser {
             format!("Missing '}}' to end the body of function {}", name).as_str(),
         )?;
         self.scope.pop();
+
         Ok(Stmt::Function(FunctionDeclaration {
             name: name,
             parameters: parameters,
@@ -399,9 +404,8 @@ impl Parser {
         )?;
 
         while self.at().token_type != TokenType::RIGHTBRACE {
-            let stmt;
-            match self.parse_stmt() {
-                Ok(s) => stmt = s,
+            let stmt = match self.parse_stmt() {
+                Ok(s) => s,
                 Err(e) => match e {
                     ParserError::ScopeError(message, line) => {
                         return Err(ParserError::ScopeError(
@@ -414,7 +418,7 @@ impl Parser {
                     }
                     _ => return Err(e),
                 },
-            }
+            };
             match stmt {
                 Stmt::VarDeclaration(var_stmt) => var.push(var_stmt),
                 Stmt::Function(method_stmt) => {

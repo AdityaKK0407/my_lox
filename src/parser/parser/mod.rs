@@ -81,7 +81,7 @@ impl Parser {
             TokenType::IF => self.parse_if_else_statement(),
             TokenType::WHILE => self.parse_while_statement(),
             TokenType::FOR => self.parse_for_statement(),
-            TokenType::FUN => self.parse_function_statement(),
+            TokenType::FUN => self.parse_functional_statement(),
             TokenType::CLASS => self.parse_class_statement(),
             TokenType::RETURN => {
                 let line = self.eat().line;
