@@ -257,7 +257,7 @@ pub fn type_of(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeEr
         RuntimeVal::Object(_) => Ok(make_string("Object")),
         RuntimeVal::Array(_) => Ok(make_string("Array")),
         RuntimeVal::Function { .. } => Ok(make_string("Function")),
-        RuntimeVal::NativeFunction(_) => Ok(make_string("Native function")),
+        RuntimeVal::NativeFunction(_, _) => Ok(make_string("Native function")),
         RuntimeVal::Method { .. } => Ok(make_string("Method")),
         RuntimeVal::Class { .. } => Ok(make_string("Class")),
         RuntimeVal::Instance { .. } => Ok(make_string("Instance")),

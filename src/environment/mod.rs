@@ -38,16 +38,16 @@ impl Environment {
 }
 
 pub fn set_global_scope(env: &Rc<RefCell<Environment>>) {
-    let _ = declare_var(env, "clock", make_native_function(clock), true);
-    let _ = declare_var(env, "scan", make_native_function(scan), true);
-    let _ = declare_var(env, "min", make_native_function(min), true);
-    let _ = declare_var(env, "max", make_native_function(max), true);
-    let _ = declare_var(env, "number", make_native_function(number), true);
-    let _ = declare_var(env, "bool", make_native_function(bool), true);
-    let _ = declare_var(env, "string", make_native_function(string), true);
-    let _ = declare_var(env, "len", make_native_function(len), true);
-    let _ = declare_var(env, "type_of", make_native_function(type_of), true);
-    let _ = declare_var(env, "reverse", make_native_function(reverse), true);
+    let _ = declare_var(env, "clock", make_native_function(clock, "clock"), true);
+    let _ = declare_var(env, "scan", make_native_function(scan, "scan"), true);
+    let _ = declare_var(env, "min", make_native_function(min, "min"), true);
+    let _ = declare_var(env, "max", make_native_function(max, "max"), true);
+    let _ = declare_var(env, "number", make_native_function(number, "number"), true);
+    let _ = declare_var(env, "bool", make_native_function(bool, "bool"), true);
+    let _ = declare_var(env, "string", make_native_function(string, "string"), true);
+    let _ = declare_var(env, "len", make_native_function(len, "len"), true);
+    let _ = declare_var(env, "type_of", make_native_function(type_of, "type_of"), true);
+    let _ = declare_var(env, "reverse", make_native_function(reverse, "reverse"), true);
 }
 
 pub fn declare_var(

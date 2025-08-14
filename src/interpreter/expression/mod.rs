@@ -6,6 +6,7 @@ use crate::ast::*;
 use crate::environment::*;
 use crate::handle_errors::EnvironmentError;
 use crate::handle_errors::RuntimeError;
+use crate::handle_errors::RuntimeError::InvalidCall;
 use crate::interpreter::interpreter::*;
 use crate::lexer::*;
 use crate::values::*;
@@ -394,12 +395,13 @@ fn evaluate_function_body(
     line: usize,
 ) -> Result<RuntimeVal, RuntimeError> {
     let callable = ["function", "method", "constructor"];
+
     if args.len() != params.len() {
         return Err(RuntimeError::InvalidArgumentCount(
             format!(
                 "Expected {}, found {} arguments provided to {} {}",
-                params.len(),
                 args.len(),
+                params.len(),
                 callable[index],
                 name
             ),
@@ -465,31 +467,23 @@ fn evaluate_function_call(
                     )?;
                 }
             }
-            return Ok(instance);
+            Ok(instance)
         }
 
-        RuntimeVal::Method { func, instance } => {
-            if let RuntimeVal::Function {
-                name,
-                params,
-                body,
-                closure,
-            } = *func
-            {
-                let local_env = Environment::new(Some(Rc::clone(&closure)));
-                if let Err(_) = declare_var(&local_env, "this", *instance, true) {
-                    return Err(RuntimeError::InternalError);
-                }
-                return evaluate_function_body(
-                    &name[..],
-                    args,
-                    &params,
-                    &body,
-                    &local_env,
-                    1,
-                    line,
-                );
+        RuntimeVal::Method { name, params, body, closure, instance } => {
+            let local_env = Environment::new(Some(Rc::clone(&closure)));
+            if let Err(_) = declare_var(&local_env, "this", *instance, true) {
+                return Err(RuntimeError::InternalError);
             }
+            evaluate_function_body(
+                &name[..],
+                args,
+                &params,
+                &body,
+                &local_env,
+                1,
+                line,
+            )
         }
 
         RuntimeVal::Function {
@@ -499,19 +493,18 @@ fn evaluate_function_call(
             closure,
         } => {
             let local_env = Environment::new(Some(Rc::clone(&closure)));
-            return evaluate_function_body(&name[..], args, &params, &body, &local_env, 0, line);
+            evaluate_function_body(&name[..], args, &params, &body, &local_env, 0, line)
         }
 
-        RuntimeVal::NativeFunction(func) => {
+        RuntimeVal::NativeFunction(func, ..) => {
             let mut values = vec![];
             for arg in args {
                 values.push(evaluate_expr(&arg, env)?);
             }
-            return func(&values, line);
+            func(&values, line)
         }
-        _ => panic!(),
-    };
-    Ok(make_nil())
+        _ => Err(InvalidCall("Expected function, method or class type for call expression".to_string(), line))
+    }
 }
 
 fn evaluate_member_expr(
@@ -589,7 +582,9 @@ fn evaluate_member_expr(
                     let method = methods.get(lexeme);
                     if let Some(method) = method {
                         if let Some(val) = method_exists {
-                            return Ok(make_method(method.clone(), val));
+                            if let RuntimeVal::Function {name, params, body, closure} = method {
+                                return Ok(make_method(name, params, body, closure, val));
+                            }
                         }
                         return Ok(method.clone());
                     }

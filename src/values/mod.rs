@@ -28,9 +28,12 @@ pub enum RuntimeVal {
         body: Vec<Stmt>,
         closure: Rc<RefCell<Environment>>,
     },
-    NativeFunction(fn(&[RuntimeVal], usize) -> Result<RuntimeVal, RuntimeError>),
+    NativeFunction(fn(&[RuntimeVal], usize) -> Result<RuntimeVal, RuntimeError>, String),
     Method {
-        func: Box<RuntimeVal>,
+        name: String,
+        params: Vec<String>,
+        body: Vec<Stmt>,
+        closure: Rc<RefCell<Environment>>,
         instance: Box<RuntimeVal>,
     },
     Class {
@@ -83,12 +86,15 @@ pub fn make_function(
     }
 }
 
-pub fn make_native_function(func: fn(&[RuntimeVal], usize) -> Result<RuntimeVal, RuntimeError>) -> RuntimeVal {
-    RuntimeVal::NativeFunction(func)
+pub fn make_native_function(func: fn(&[RuntimeVal], usize) -> Result<RuntimeVal, RuntimeError>, name: &str) -> RuntimeVal {
+    RuntimeVal::NativeFunction(func, name.to_string())
 }
 
-pub fn make_method(func: RuntimeVal, instance_var: RuntimeVal) -> RuntimeVal {
-    RuntimeVal::Method { func: Box::new(func), instance: Box::new(instance_var) }
+pub fn make_method(name: &str,
+                   params: &[String],
+                   body: &[Stmt],
+                   closure: &Rc<RefCell<Environment>>, instance_var: RuntimeVal) -> RuntimeVal {
+    RuntimeVal::Method { name: name.to_string(), params: params.to_vec(), body: body.to_vec(), closure: Rc::clone(&closure), instance: Box::new(instance_var) }
 }
 
 pub fn make_class(

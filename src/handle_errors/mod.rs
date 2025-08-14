@@ -20,6 +20,8 @@ pub enum RuntimeError {
 
     ArrayIndexOutOfBounds(String, usize),
     InvalidArrayIndex(String, usize),
+    
+    InvalidCall(String, usize),
 
     InvalidMemberAccess(String, usize),
     UndefinedField(String, usize),
@@ -101,7 +103,9 @@ pub fn handle_runtime_error(error: RuntimeError, code: &[&str]) {
         }
 
         RuntimeError::InvalidArgumentCount(s, line) => {
-            eprintln!("Line {}: {}", line, code[line - 1]);
+            if line != 0 {
+                eprintln!("Line {}: {}", line, code[line - 1]);
+            }
             eprintln!("Error: {}", s);
         }
 
@@ -113,6 +117,11 @@ pub fn handle_runtime_error(error: RuntimeError, code: &[&str]) {
         RuntimeError::InvalidArrayIndex(s, line) => {
             eprintln!("Line {}: {}", line, code[line - 1]);
             eprintln!("Error: {}", s);
+        }
+        
+        RuntimeError::InvalidCall(s, line) => {
+            eprintln!("Line {}: {}", line, code[line - 1]);
+            eprintln!("Error: {}", s);            
         }
 
         RuntimeError::InvalidMemberAccess(s, line) => {

@@ -81,7 +81,7 @@ NOTE - This method only works for Windows OS. For Linux or Mac, use option 2.
     # Navigate to project directory
     cd lox
 
-    # Build project (optional but recommended)
+    # Build project (optional)
     cargo build --release
   ```
 
@@ -90,10 +90,10 @@ NOTE - This method only works for Windows OS. For Linux or Mac, use option 2.
 
   ```bash
       # REPL mode
-      cargo run
+      cargo run --release
 
       # Run from a file
-      cargo run -- file.lox [optional arguments to main function]
+      cargo run --release file.lox [optional arguments to main function]
   ```
 
 - To install or uninstall the executable to system path, run the following commands
@@ -274,6 +274,11 @@ NOTE - This method only works for Windows OS. For Linux or Mac, use option 2.
       }
       class B < A {} // B inherits from A
   ```
+
+## Error Handling
+
+Errors are reported in the console with a clear message and the line number where they occurred.  
+Certain low-level issues, such as memory overflows or infinite stack traces, are handled by the Rust runtime rather than the interpreter itself.
 
 # License
 

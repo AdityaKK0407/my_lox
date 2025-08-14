@@ -1,6 +1,8 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::io;
+use std::io::Write;
 
 use crate::ast::*;
 use crate::environment::*;
@@ -47,6 +49,7 @@ pub fn print_stmt(
     if new_line {
         println!();
     }
+    io::stdout().flush().unwrap();
     Ok(make_none())
 }
 
@@ -58,7 +61,11 @@ pub fn print_runtime_val(runtime_val: RuntimeVal) {
         RuntimeVal::String(s) => print!("{}", s),
         RuntimeVal::Object(obj) => print_obj(obj),
         RuntimeVal::Array(arr) => print_arr(arr),
-        _ => {}
+        RuntimeVal::Function { name, .. } => print!("Function: '{}'", name),
+        RuntimeVal::NativeFunction(_, name) => print!("Native Function: '{}'", name),
+        RuntimeVal::Method { name, .. } => print!("Method '{}'", name),
+        RuntimeVal::Class { name, .. } => print!("Class: '{}'", name),
+        RuntimeVal::Instance { class_name, .. } => print!("Class Instance: '{}'", class_name),
     }
 }
 

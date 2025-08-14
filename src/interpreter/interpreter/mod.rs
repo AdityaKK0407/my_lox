@@ -76,12 +76,8 @@ fn evaluate_first_pass(
                     let res = make_function(&func.name[..], &func.parameters, &func.body, env);
                     methods.insert(name.clone(), res);
                 }
-                let class_val = make_class(
-                    &class.name[..],
-                    fields,
-                    methods,
-                    class.superclass.clone(),
-                );
+                let class_val =
+                    make_class(&class.name[..], fields, methods, class.superclass.clone());
                 if let Err(_) = declare_var(env, &class.name[..], class_val, true) {
                     return Err(RuntimeError::EnvironmentError(
                         format!(
@@ -155,12 +151,7 @@ pub fn evaluate(
                 let res = make_function(&func.name[..], &func.parameters, &func.body, env);
                 method.insert(name.clone(), res);
             }
-            let class_val = make_class(
-                &name[..],
-                fields,
-                method,
-                superclass.clone(),
-            );
+            let class_val = make_class(&name[..], fields, method, superclass.clone());
             if let Err(_) = declare_var(env, &name[..], class_val, true) {
                 return Err(RuntimeError::EnvironmentError(
                     format!(
