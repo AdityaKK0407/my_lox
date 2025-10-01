@@ -6,7 +6,6 @@ use crate::ast::*;
 use crate::environment::*;
 use crate::handle_errors::EnvironmentError;
 use crate::handle_errors::RuntimeError;
-use crate::handle_errors::RuntimeError::InvalidCall;
 use crate::interpreter::interpreter::*;
 use crate::lexer::*;
 use crate::values::*;
@@ -503,7 +502,7 @@ fn evaluate_function_call(
             }
             func(&values, line)
         }
-        _ => Err(InvalidCall("Expected function, method or class type for call expression".to_string(), line))
+        _ => Err(RuntimeError::InvalidCall("Expected function, method or class type for call expression".to_string(), line))
     }
 }
 

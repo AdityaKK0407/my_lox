@@ -48,6 +48,8 @@ To view the book, click [Crafting Interpreters](https://craftinginterpreters.com
   - len - returns length of array or string
   - var_type - return the type of variable (even works for functions, classes and instances)
   - reverse - returns the reverse of string or array
+  - append - inserts a element in the array at the given index (default: end of array)
+  - remove - removes the element in the array at the given index (default: end of array)
 
 # How to Run
 

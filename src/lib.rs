@@ -19,8 +19,8 @@ mod interpreter {
 mod lexer;
 mod parser {
     pub mod expression;
-    pub mod parser;
     pub mod statement;
+    pub mod parser;
 }
 mod global_scope;
 mod values;

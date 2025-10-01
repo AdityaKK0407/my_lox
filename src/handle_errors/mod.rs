@@ -20,7 +20,7 @@ pub enum RuntimeError {
 
     ArrayIndexOutOfBounds(String, usize),
     InvalidArrayIndex(String, usize),
-    
+
     InvalidCall(String, usize),
 
     InvalidMemberAccess(String, usize),

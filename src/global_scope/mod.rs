@@ -284,3 +284,79 @@ pub fn reverse(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeEr
         )),
     }
 }
+
+pub fn append(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeError> {
+    if args.len() < 2 || args.len() > 3 {
+        return Err(RuntimeError::InvalidArgumentCount(format!(
+            "Expected 2 | 3, found {} arguments provided to native function 'append'",
+            args.len()
+        ), line));
+    }
+    let mut array = match &args[0] {
+        RuntimeVal::Array(arr) => arr.clone(),
+        _ => return Err(RuntimeError::TypeMismatch(
+            "Only type array allowed as first argument in 'append' function".to_string(),
+            line,
+        )),
+    };
+    
+    let val = &args[1];
+    
+    let position;
+    if args.len() == 2 {
+        position = array.len() - 1;
+    } else {
+        match &args[2] {
+            RuntimeVal::Number(pos) => {
+                if *pos < 0.0 || pos.fract() != 0.0 {
+                    return Err(RuntimeError::InvalidArrayIndex(format!("'{}' is an invalid type. Arrays can only be accessed with positive integers", pos), line));
+                }
+                let pos_num = *pos as usize;
+                if pos_num >= array.len() {
+                    return Err(RuntimeError::ArrayIndexOutOfBounds("Array index is out of bounds".to_string(), line));
+                }
+                position = pos_num; 
+            },
+            _ => return Err(RuntimeError::TypeMismatch("Only type number allowed as third argument in 'append' function".to_string(), line)),
+        };
+    }
+    array.insert(position, val.clone());
+    Ok(RuntimeVal::Array(array))
+}
+
+pub fn remove(args: &[RuntimeVal], line: usize) -> Result<RuntimeVal, RuntimeError> {
+    if args.len() < 1 || args.len() > 2 {
+        return Err(RuntimeError::InvalidArgumentCount(format!(
+            "Expected 2 | 3, found {} arguments provided to native function 'remove'",
+            args.len()
+        ), line));
+    }
+    let mut array = match &args[0] {
+        RuntimeVal::Array(arr) => arr.clone(),
+        _ => return Err(RuntimeError::TypeMismatch(
+            "Only type array allowed as first argument in 'remove' function".to_string(),
+            line,
+        )),
+    };
+
+    let position;
+    if args.len() == 1 {
+        position = array.len() - 1;
+    } else {
+        match &args[1] {
+            RuntimeVal::Number(pos) => {
+                if *pos < 0.0 || pos.fract() != 0.0 {
+                    return Err(RuntimeError::InvalidArrayIndex(format!("'{}' is an invalid type. Arrays can only be accessed with positive integers", pos), line));
+                }
+                let pos_num = *pos as usize;
+                if pos_num >= array.len() {
+                    return Err(RuntimeError::ArrayIndexOutOfBounds("Array index is out of bounds".to_string(), line));
+                }
+                position = pos_num;
+            },
+            _ => return Err(RuntimeError::TypeMismatch("Only type number allowed as third argument in 'remove' function".to_string(), line)),
+        };
+    }
+    array.remove(position);
+    Ok(RuntimeVal::Array(array))
+}

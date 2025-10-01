@@ -48,6 +48,8 @@ pub fn set_global_scope(env: &Rc<RefCell<Environment>>) {
     let _ = declare_var(env, "len", make_native_function(len, "len"), true);
     let _ = declare_var(env, "type_of", make_native_function(type_of, "type_of"), true);
     let _ = declare_var(env, "reverse", make_native_function(reverse, "reverse"), true);
+    let _ = declare_var(env, "append", make_native_function(append, "append"), true);
+    let _ = declare_var(env, "remove", make_native_function(remove, "remove"), true);
 }
 
 pub fn declare_var(

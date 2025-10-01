@@ -2,7 +2,6 @@ use crate::ast::*;
 use crate::environment::Scope;
 use crate::handle_errors::*;
 use crate::lexer::*;
-
 pub struct Parser {
     tokens: Vec<Token>,
     pub scope: Vec<Scope>,
