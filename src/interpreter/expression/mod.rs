@@ -389,6 +389,7 @@ fn evaluate_function_body(
     args: &[Expr],
     params: &[String],
     body: &[Stmt],
+    env: &Rc<RefCell<Environment>>,
     local_env: &Rc<RefCell<Environment>>,
     index: usize,
     line: usize,
@@ -409,7 +410,7 @@ fn evaluate_function_body(
     }
 
     for i in 0..args.len() {
-        let value = evaluate_expr(&args[i], local_env)?;
+        let value = evaluate_expr(&args[i], env)?;
         if let Err(_) = declare_var(&local_env, &params[i][..], value, false) {
             return Err(RuntimeError::EnvironmentError(
                 format!(
@@ -460,6 +461,7 @@ fn evaluate_function_call(
                         args,
                         &params,
                         &body,
+                        env,
                         &local_env,
                         2,
                         line,
@@ -479,6 +481,7 @@ fn evaluate_function_call(
                 args,
                 &params,
                 &body,
+                env,
                 &local_env,
                 1,
                 line,
@@ -492,7 +495,7 @@ fn evaluate_function_call(
             closure,
         } => {
             let local_env = Environment::new(Some(Rc::clone(&closure)));
-            evaluate_function_body(&name[..], args, &params, &body, &local_env, 0, line)
+            evaluate_function_body(&name[..], args, &params, &body, env, &local_env, 0, line)
         }
 
         RuntimeVal::NativeFunction(func, ..) => {

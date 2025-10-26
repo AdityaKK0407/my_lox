@@ -1,4 +1,3 @@
-#[derive(Debug)]
 pub enum ParserError {
     EOF,
     UnExpectedToken(String, usize),
@@ -10,7 +9,6 @@ pub enum ParserError {
     ScopeError(String, usize),
 }
 
-#[derive(Debug)]
 pub enum RuntimeError {
     TypeMismatch(String, usize),
 
@@ -32,7 +30,7 @@ pub enum RuntimeError {
     InternalError, // Error should not occur but made to satisfy rust compiler
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub enum EnvironmentError {
     ReDeclareVar,
     ConstReassign,

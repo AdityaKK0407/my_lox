@@ -1,6 +1,6 @@
 use crate::handle_errors::handle_lexer_error;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub enum TokenType {
     // Single-Character Tokens
     LEFTPAREN,
@@ -65,7 +65,7 @@ pub enum TokenType {
     EOF,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct Token {
     pub token_type: TokenType,
     pub lexeme: String,
